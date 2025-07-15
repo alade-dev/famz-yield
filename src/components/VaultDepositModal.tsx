@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,19 +21,24 @@ interface VaultDepositModalProps {
   strategy: string;
 }
 
-const VaultDepositModal = ({ children, vaultName, apy, strategy }: VaultDepositModalProps) => {
+const VaultDepositModal = ({
+  children,
+  vaultName,
+  apy,
+  strategy,
+}: VaultDepositModalProps) => {
   const [wbtcAmount, setWbtcAmount] = useState<string>("");
   const [stcoreAmount, setStcoreAmount] = useState<string>("");
   const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
-  const { addPosition } = useVault();
+  const { addPosition, userBalances, setUserBalances } = useVault();
 
   // Calculate expected lstBTC based on inputs
   const calculateLstBtc = () => {
     const wbtc = parseFloat(wbtcAmount) || 0;
     const stcore = parseFloat(stcoreAmount) || 0;
     // Simplified calculation: wBTC is worth more, stCORE contributes less
-    return ((wbtc * 0.95) + (stcore * 0.0001)).toFixed(6);
+    return (wbtc * 0.95 + stcore * 0.0001).toFixed(6);
   };
 
   // Calculate total USD value (rough estimation)
@@ -35,7 +46,7 @@ const VaultDepositModal = ({ children, vaultName, apy, strategy }: VaultDepositM
     const wbtc = parseFloat(wbtcAmount) || 0;
     const stcore = parseFloat(stcoreAmount) || 0;
     // Rough USD values: wBTC ~$43,000, stCORE ~$1
-    return (wbtc * 43000) + (stcore * 1);
+    return wbtc * 43000 + stcore * 1;
   };
 
   const handleDeposit = () => {
@@ -50,7 +61,7 @@ const VaultDepositModal = ({ children, vaultName, apy, strategy }: VaultDepositM
 
     const wbtcNum = parseFloat(wbtcAmount);
     const stcoreNum = parseFloat(stcoreAmount);
-    
+
     if (wbtcNum <= 0 || stcoreNum <= 0) {
       toast({
         title: "Error",
@@ -60,6 +71,33 @@ const VaultDepositModal = ({ children, vaultName, apy, strategy }: VaultDepositM
       return;
     }
 
+    // Check if user has sufficient balance
+    if (wbtcNum > userBalances.wbtc) {
+      toast({
+        title: "Insufficient wBTC Balance",
+        description: `You need ${wbtcNum.toFixed(
+          6
+        )} wBTC but only have ${userBalances.wbtc.toFixed(6)} wBTC available`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (stcoreNum > userBalances.stcore) {
+      toast({
+        title: "Insufficient stCORE Balance",
+        description: `You need ${stcoreNum.toLocaleString()} stCORE but only have ${userBalances.stcore.toLocaleString()} stCORE available`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Deduct amounts from user balances
+    setUserBalances((prev) => ({
+      wbtc: prev.wbtc - wbtcNum,
+      stcore: prev.stcore - stcoreNum,
+    }));
+
     // Add position to user's portfolio
     addPosition({
       vaultName,
@@ -67,14 +105,14 @@ const VaultDepositModal = ({ children, vaultName, apy, strategy }: VaultDepositM
       stcoreDeposited: stcoreNum,
       lstbtcGenerated: parseFloat(calculateLstBtc()),
       currentValue: calculateTotalValue(),
-      apy: apy
+      apy: apy,
     });
 
     toast({
       title: "Deposit Successful!",
       description: `Deposited ${wbtcAmount} wBTC and ${stcoreAmount} stCORE to ${vaultName}`,
     });
-    
+
     setIsOpen(false);
     setWbtcAmount("");
     setStcoreAmount("");
@@ -82,9 +120,7 @@ const VaultDepositModal = ({ children, vaultName, apy, strategy }: VaultDepositM
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
+      <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-lg bg-vault-card border-vault-border">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
@@ -92,7 +128,7 @@ const VaultDepositModal = ({ children, vaultName, apy, strategy }: VaultDepositM
             <span>Deposit to {vaultName}</span>
           </DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-4">
           {/* Strategy Info */}
           <div className="p-3 bg-muted/50 rounded-lg">
@@ -119,6 +155,9 @@ const VaultDepositModal = ({ children, vaultName, apy, strategy }: VaultDepositM
                   <span>wBTC</span>
                 </div>
               </div>
+              <div className="text-xs text-muted-foreground">
+                Available: {userBalances.wbtc.toFixed(6)} wBTC
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -137,6 +176,9 @@ const VaultDepositModal = ({ children, vaultName, apy, strategy }: VaultDepositM
                   <span>⚡</span>
                   <span>stCORE</span>
                 </div>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Available: {userBalances.stcore.toLocaleString()} stCORE
               </div>
             </div>
           </div>
@@ -159,8 +201,12 @@ const VaultDepositModal = ({ children, vaultName, apy, strategy }: VaultDepositM
                 <ArrowDown className="w-6 h-6 text-primary mx-auto" />
                 <div className="space-y-1">
                   <div className="text-center">
-                    <p className="text-sm text-muted-foreground">Will Generate</p>
-                    <p className="text-xl font-bold text-gold">{calculateLstBtc()} lstBTC</p>
+                    <p className="text-sm text-muted-foreground">
+                      Will Generate
+                    </p>
+                    <p className="text-xl font-bold text-gold">
+                      {calculateLstBtc()} lstBTC
+                    </p>
                   </div>
                   <div className="text-center">
                     <p className="text-xs text-muted-foreground">

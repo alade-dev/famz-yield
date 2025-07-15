@@ -30,7 +30,7 @@ const Vaults = () => {
   const [stcoreAmount, setStcoreAmount] = useState("");
   const [showUserVaults, setShowUserVaults] = useState(false);
   const { toast } = useToast();
-  const { positions, addPosition } = useVault();
+  const { positions, addPosition, userBalances, setUserBalances } = useVault();
 
   // Automatically show user vaults if they exist
   useEffect(() => {
@@ -91,6 +91,33 @@ const Vaults = () => {
       });
       return;
     }
+
+    // Check if user has sufficient balance
+    if (wbtcNum > userBalances.wbtc) {
+      toast({
+        title: "Insufficient wBTC Balance",
+        description: `You need ${wbtcNum.toFixed(
+          6
+        )} wBTC but only have ${userBalances.wbtc.toFixed(6)} wBTC available`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (stcoreNum > userBalances.stcore) {
+      toast({
+        title: "Insufficient stCORE Balance",
+        description: `You need ${stcoreNum.toLocaleString()} stCORE but only have ${userBalances.stcore.toLocaleString()} stCORE available`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Deduct amounts from user balances
+    setUserBalances((prev) => ({
+      wbtc: prev.wbtc - wbtcNum,
+      stcore: prev.stcore - stcoreNum,
+    }));
 
     // Add the new position to the vault context
     const lstbtcAmount = parseFloat(calculateLstBtc());
@@ -167,6 +194,33 @@ const Vaults = () => {
                 <h3 className="text-lg font-semibold">Required Assets</h3>
               </div>
 
+              {/* Available Balance Display */}
+              <div className="p-4 bg-muted/30 rounded-lg border border-vault-border">
+                <h4 className="text-sm font-medium mb-3 text-muted-foreground">
+                  Available Balance
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center justify-between p-2 bg-background/50 rounded">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg">₿</span>
+                      <span className="text-sm font-medium">wBTC</span>
+                    </div>
+                    <span className="text-sm font-bold">
+                      {userBalances.wbtc.toFixed(6)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-background/50 rounded">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg">⚡</span>
+                      <span className="text-sm font-medium">stCORE</span>
+                    </div>
+                    <span className="text-sm font-bold">
+                      {userBalances.stcore.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="wbtcAmount">wBTC Amount *</Label>
@@ -185,6 +239,9 @@ const Vaults = () => {
                       <span>wBTC</span>
                     </div>
                   </div>
+                  <div className="text-xs text-muted-foreground">
+                    Available: {userBalances.wbtc.toFixed(6)} wBTC
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="stcoreAmount">stCORE Amount *</Label>
@@ -202,6 +259,9 @@ const Vaults = () => {
                       <span>⚡</span>
                       <span>stCORE</span>
                     </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Available: {userBalances.stcore.toLocaleString()} stCORE
                   </div>
                 </div>
               </div>
