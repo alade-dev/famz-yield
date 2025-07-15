@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Settings, TrendingUp, Users, Lock, ArrowRight, Sparkles, Shield, ArrowDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import VaultDepositModal from "@/components/VaultDepositModal";
 
 const Vaults = () => {
   const [isCreating, setIsCreating] = useState(false);
@@ -345,11 +346,17 @@ const Vaults = () => {
                 </div>
               </div>
 
-              <div className="flex space-x-2">
-                <Button variant="default" className="flex-1 group">
-                  <span>Deposit</span>
-                  <ArrowRight className="w-3 h-3 ml-1 group-hover:translate-x-0.5 transition-transform" />
-                </Button>
+               <div className="flex space-x-2">
+                <VaultDepositModal 
+                  vaultName={vault.name}
+                  apy={vault.apy}
+                  strategy={vault.strategy}
+                >
+                  <Button variant="default" className="flex-1 group">
+                    <span>Deposit</span>
+                    <ArrowRight className="w-3 h-3 ml-1 group-hover:translate-x-0.5 transition-transform" />
+                  </Button>
+                </VaultDepositModal>
                 <Button variant="outline" size="sm">
                   <Settings className="w-4 h-4" />
                 </Button>

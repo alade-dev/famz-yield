@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Coins, Calendar, ArrowUpRight } from "lucide-react";
+import { useVault } from "@/contexts/VaultContext";
 
 interface EarningsCardProps {
   title: string;
@@ -53,38 +54,53 @@ const EarningsCard = ({ title, amount, token, percentage, period, isPositive = t
 };
 
 const EarningsOverview = () => {
+  const { getTotalEarnings, getTotalDeposited, getTotalValue, positions } = useVault();
+  
+  const totalEarnings = getTotalEarnings();
+  const totalDeposited = getTotalDeposited();
+  const totalValue = getTotalValue();
+  const earningsPercentage = totalDeposited > 0 ? ((totalEarnings / totalDeposited) * 100).toFixed(1) : "0";
+  
+  // Calculate week earnings (simplified as 1/52 of annual)
+  const weeklyEarnings = totalEarnings / 52;
+  
+  // Calculate average APY across positions
+  const avgApy = positions.length > 0 
+    ? (positions.reduce((sum, pos) => sum + parseFloat(pos.apy.replace('%', '')), 0) / positions.length).toFixed(1)
+    : "0";
+
   const earningsData = [
     {
       title: "Total Earnings",
-      amount: "2,485.67",
+      amount: totalEarnings.toFixed(2),
       token: "USD",
-      percentage: "+12.4%",
-      period: "30d",
-      isPositive: true
+      percentage: `+${earningsPercentage}%`,
+      period: "All Time",
+      isPositive: totalEarnings > 0
     },
     {
-      title: "wBTC Yield",
-      amount: "0.0123",
-      token: "wBTC", 
-      percentage: "+8.2%",
-      period: "APY",
-      isPositive: true
+      title: "Portfolio Value",
+      amount: totalValue.toFixed(2),
+      token: "USD", 
+      percentage: totalValue > totalDeposited ? `+${((totalValue - totalDeposited) / totalDeposited * 100).toFixed(1)}%` : "0%",
+      period: "Current",
+      isPositive: totalValue > totalDeposited
     },
     {
-      title: "stCORE Rewards",
-      amount: "156.78",
-      token: "stCORE",
-      percentage: "+12.5%",
-      period: "APY",
+      title: "Active Positions",
+      amount: positions.length.toString(),
+      token: "Vaults",
+      percentage: `${avgApy}%`,
+      period: "Avg APY",
       isPositive: true
     },
     {
       title: "Weekly Earnings",
-      amount: "89.43",
+      amount: weeklyEarnings.toFixed(2),
       token: "USD",
-      percentage: "+5.8%",
-      period: "7d",
-      isPositive: true
+      percentage: weeklyEarnings > 0 ? "+Est." : "0%",
+      period: "7d Est.",
+      isPositive: weeklyEarnings > 0
     }
   ];
 

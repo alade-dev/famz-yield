@@ -4,8 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import DepositModal from "@/components/DepositModal";
 import EarningsOverview from "@/components/EarningsCard";
 import VaultCreationCard from "@/components/VaultCreationCard";
+import UserPositions from "@/components/UserPositions";
+import { useVault } from "@/contexts/VaultContext";
 
 const Dashboard = () => {
+  const { getTotalDeposited, getTotalValue, positions } = useVault();
+  
+  const totalDeposited = getTotalDeposited();
+  const totalValue = getTotalValue();
+  const totalWbtc = positions.reduce((sum, pos) => sum + pos.wbtcDeposited, 0);
+  const totalStcore = positions.reduce((sum, pos) => sum + pos.stcoreDeposited, 0);
+  
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Hero Section */}
@@ -58,40 +67,51 @@ const Dashboard = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">Total Deposited</p>
-                <p className="text-2xl font-bold">$12,485.67</p>
-                <p className="text-sm text-gold">+8.4% from last month</p>
+                <p className="text-2xl font-bold">${totalDeposited.toLocaleString()}</p>
+                <p className="text-sm text-gold">
+                  {totalValue > totalDeposited ? `+${((totalValue - totalDeposited) / totalDeposited * 100).toFixed(1)}%` : 'Start depositing to earn yield'}
+                </p>
               </div>
               <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Active Vaults</p>
-                <p className="text-2xl font-bold">3</p>
-                <p className="text-sm text-muted-foreground">2 wBTC, 1 stCORE</p>
+                <p className="text-sm text-muted-foreground">Active Positions</p>
+                <p className="text-2xl font-bold">{positions.length}</p>
+                <p className="text-sm text-muted-foreground">
+                  {positions.length > 0 ? 'lstBTC Vaults' : 'No positions yet'}
+                </p>
               </div>
             </div>
             
             <div className="space-y-3">
               <h4 className="font-medium">Asset Breakdown</h4>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-lg">₿</span>
-                    <span className="font-medium">wBTC</span>
+              {positions.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg">₿</span>
+                      <span className="font-medium">wBTC Total</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">{totalWbtc.toFixed(6)} wBTC</p>
+                      <p className="text-sm text-muted-foreground">${(totalWbtc * 43000).toLocaleString()}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium">0.2456 wBTC</p>
-                    <p className="text-sm text-muted-foreground">$8,234.50</p>
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg">⚡</span>
+                      <span className="font-medium">stCORE Total</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">{totalStcore.toLocaleString()} stCORE</p>
+                      <p className="text-sm text-muted-foreground">${totalStcore.toLocaleString()}</p>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-lg">⚡</span>
-                    <span className="font-medium">stCORE</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">4,251.17 stCORE</p>
-                    <p className="text-sm text-muted-foreground">$4,251.17</p>
-                  </div>
+              ) : (
+                <div className="text-center py-6">
+                  <p className="text-muted-foreground">No assets deposited yet</p>
+                  <p className="text-sm text-muted-foreground mt-1">Start by depositing to a vault</p>
                 </div>
-              </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -99,6 +119,9 @@ const Dashboard = () => {
         {/* Vault Creation */}
         <VaultCreationCard />
       </div>
+
+      {/* User Positions */}
+      <UserPositions />
 
       {/* Quick Actions */}
       <Card className="bg-gradient-vault border-vault-border">
