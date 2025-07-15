@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { LayoutDashboard, Vault, Menu, X } from "lucide-react";
+import WalletConnect from "./WalletConnect";
 
 const Navigation = () => {
   const location = useLocation();
@@ -30,18 +31,21 @@ const Navigation = () => {
           </div>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-1">
-            {navItems.map((item) => (
-              <Link key={item.path} to={item.path}>
-                <Button
-                  variant={isActive(item.path) ? "default" : "ghost"}
-                  className="flex items-center space-x-2"
-                >
-                  <item.icon className="w-4 h-4" />
-                  <span>{item.label}</span>
-                </Button>
-              </Link>
-            ))}
+          <div className="hidden md:flex items-center space-x-4">
+            <div className="flex items-center space-x-1">
+              {navItems.map((item) => (
+                <Link key={item.path} to={item.path}>
+                  <Button
+                    variant={isActive(item.path) ? "default" : "ghost"}
+                    className="flex items-center space-x-2"
+                  >
+                    <item.icon className="w-4 h-4" />
+                    <span>{item.label}</span>
+                  </Button>
+                </Link>
+              ))}
+            </div>
+            <WalletConnect />
           </div>
 
           {/* Mobile menu button */}
@@ -74,6 +78,9 @@ const Navigation = () => {
                   </Button>
                 </Link>
               ))}
+              <div className="pt-2">
+                <WalletConnect />
+              </div>
             </div>
           </div>
         )}
