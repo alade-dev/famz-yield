@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { WagmiProvider } from 'wagmi';
 import { config } from './config/wagmi';
 import { VaultProvider } from "./contexts/VaultContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
 import Navigation from "./components/Navigation";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
@@ -46,13 +47,15 @@ const App = () => (
   <WagmiProvider config={config}>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <VaultProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AppContent />
-          </BrowserRouter>
-        </VaultProvider>
+        <ThemeProvider>
+          <VaultProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <AppContent />
+            </BrowserRouter>
+          </VaultProvider>
+        </ThemeProvider>
       </TooltipProvider>
     </QueryClientProvider>
   </WagmiProvider>

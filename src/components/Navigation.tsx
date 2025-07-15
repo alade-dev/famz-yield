@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { LayoutDashboard, Vault, Menu, X } from "lucide-react";
 import WalletConnect from "./WalletConnect";
+import ThemeToggle from "./ThemeToggle";
 
 const Navigation = () => {
   const location = useLocation();
@@ -22,18 +23,22 @@ const Navigation = () => {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">Y</span>
-            </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-              Yield Hub
-            </span>
+            <Link to="/" className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
+                <span className="text-primary-foreground font-bold text-lg">
+                  F
+                </span>
+              </div>
+              <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
+                Famz
+              </span> 
+            </Link>
           </div>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-4">
             <div className="flex items-center space-x-1">
-              {navItems.map((item) => (
+              {/* {navItems.map((item) => (
                 <Link key={item.path} to={item.path}>
                   <Button
                     variant={isActive(item.path) ? "default" : "ghost"}
@@ -43,8 +48,9 @@ const Navigation = () => {
                     <span>{item.label}</span>
                   </Button>
                 </Link>
-              ))}
+              ))} */}
             </div>
+            <ThemeToggle />
             <WalletConnect />
           </div>
 
@@ -54,7 +60,11 @@ const Navigation = () => {
               variant="ghost"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             >
-              {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {isMobileMenuOpen ? (
+                <X className="w-5 h-5" />
+              ) : (
+                <Menu className="w-5 h-5" />
+              )}
             </Button>
           </div>
         </div>
@@ -63,7 +73,7 @@ const Navigation = () => {
         {isMobileMenuOpen && (
           <div className="md:hidden border-t border-vault-border mt-2 pt-2 pb-4">
             <div className="flex flex-col space-y-2">
-              {navItems.map((item) => (
+              {/* {navItems.map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
@@ -77,8 +87,12 @@ const Navigation = () => {
                     <span>{item.label}</span>
                   </Button>
                 </Link>
-              ))}
-              <div className="pt-2">
+              ))} */}
+              <div className="pt-2 flex flex-col space-y-2">
+                <div className="flex items-center justify-between px-2">
+                  <span className="text-sm text-muted-foreground">Theme</span>
+                  <ThemeToggle />
+                </div>
                 <WalletConnect />
               </div>
             </div>

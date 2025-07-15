@@ -12,7 +12,14 @@ interface EarningsCardProps {
   isPositive?: boolean;
 }
 
-const EarningsCard = ({ title, amount, token, percentage, period, isPositive = true }: EarningsCardProps) => {
+const EarningsCard = ({
+  title,
+  amount,
+  token,
+  percentage,
+  period,
+  isPositive = true,
+}: EarningsCardProps) => {
   return (
     <Card className="bg-gradient-vault border-vault-border hover:border-primary/50 transition-all duration-300 hover:shadow-card">
       <CardHeader className="pb-3">
@@ -30,10 +37,19 @@ const EarningsCard = ({ title, amount, token, percentage, period, isPositive = t
           <div className="flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold text-foreground">
-                {amount} <span className="text-sm font-normal text-muted-foreground">{token}</span>
+                {amount}{" "}
+                <span className="text-sm font-normal text-muted-foreground">
+                  {token}
+                </span>
               </div>
-              <div className={`flex items-center space-x-1 mt-1 ${isPositive ? 'text-gold' : 'text-destructive'}`}>
-                <TrendingUp className={`w-3 h-3 ${isPositive ? '' : 'rotate-180'}`} />
+              <div
+                className={`flex items-center space-x-1 mt-1 ${
+                  isPositive ? "text-gold" : "text-destructive"
+                }`}
+              >
+                <TrendingUp
+                  className={`w-3 h-3 ${isPositive ? "" : "rotate-180"}`}
+                />
                 <span className="text-xs font-medium">{percentage}</span>
               </div>
             </div>
@@ -43,10 +59,10 @@ const EarningsCard = ({ title, amount, token, percentage, period, isPositive = t
           </div>
 
           {/* Action Button */}
-          <Button variant="outline" size="sm" className="w-full group">
+          {/* <Button variant="outline" size="sm" className="w-full group">
             <span>View Details</span>
             <ArrowUpRight className="w-3 h-3 ml-1 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-          </Button>
+          </Button> */}
         </div>
       </CardContent>
     </Card>
@@ -54,20 +70,28 @@ const EarningsCard = ({ title, amount, token, percentage, period, isPositive = t
 };
 
 const EarningsOverview = () => {
-  const { getTotalEarnings, getTotalDeposited, getTotalValue, positions } = useVault();
-  
+  const { getTotalEarnings, getTotalDeposited, getTotalValue, positions } =
+    useVault();
+
   const totalEarnings = getTotalEarnings();
   const totalDeposited = getTotalDeposited();
   const totalValue = getTotalValue();
-  const earningsPercentage = totalDeposited > 0 ? ((totalEarnings / totalDeposited) * 100).toFixed(1) : "0";
-  
+  const earningsPercentage =
+    totalDeposited > 0 ? (totalEarnings / 100).toFixed(1) : "0";
+
   // Calculate week earnings (simplified as 1/52 of annual)
   const weeklyEarnings = totalEarnings / 52;
-  
+
   // Calculate average APY across positions
-  const avgApy = positions.length > 0 
-    ? (positions.reduce((sum, pos) => sum + parseFloat(pos.apy.replace('%', '')), 0) / positions.length).toFixed(1)
-    : "0";
+  const avgApy =
+    positions.length > 0
+      ? (
+          positions.reduce(
+            (sum, pos) => sum + parseFloat(pos.apy.replace("%", "")),
+            0
+          ) / positions.length
+        ).toFixed(1)
+      : "0";
 
   const earningsData = [
     {
@@ -76,15 +100,21 @@ const EarningsOverview = () => {
       token: "USD",
       percentage: `+${earningsPercentage}%`,
       period: "All Time",
-      isPositive: totalEarnings > 0
+      isPositive: totalEarnings > 0,
     },
     {
       title: "Portfolio Value",
       amount: totalValue.toFixed(2),
-      token: "USD", 
-      percentage: totalValue > totalDeposited ? `+${((totalValue - totalDeposited) / totalDeposited * 100).toFixed(1)}%` : "0%",
+      token: "USD",
+      percentage:
+        totalValue > totalDeposited
+          ? `+${(
+              ((totalValue - totalDeposited) / totalDeposited) *
+              100
+            ).toFixed(1)}%`
+          : "0%",
       period: "Current",
-      isPositive: totalValue > totalDeposited
+      isPositive: totalValue > totalDeposited,
     },
     {
       title: "Active Positions",
@@ -92,16 +122,16 @@ const EarningsOverview = () => {
       token: "Vaults",
       percentage: `${avgApy}%`,
       period: "Avg APY",
-      isPositive: true
+      isPositive: true,
     },
     {
       title: "Weekly Earnings",
       amount: weeklyEarnings.toFixed(2),
       token: "USD",
-      percentage: weeklyEarnings > 0 ? "+Est." : "0%",
+      percentage: weeklyEarnings > 0 ? `+${weeklyEarnings.toFixed(2)}` : "0",
       period: "7d Est.",
-      isPositive: weeklyEarnings > 0
-    }
+      isPositive: weeklyEarnings > 0,
+    },
   ];
 
   return (

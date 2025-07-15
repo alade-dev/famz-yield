@@ -7,7 +7,69 @@ All colors MUST be HSL.
 */
 
 @layer base {
+  /* Light mode theme */
   :root {
+    --background: 0 0% 98%;
+    --foreground: 225 15% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 225 15% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 225 15% 8%;
+
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 262 83% 70%;
+
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 225 15% 8%;
+
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 20% 45%;
+
+    --accent: 47 96% 53%;
+    --accent-foreground: 225 15% 8%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 210 20% 96%;
+    --ring: 262 83% 58%;
+
+    /* Custom DeFi colors */
+    --gold: 47 96% 53%;
+    --gold-foreground: 225 15% 8%;
+    --vault-card: 0 0% 100%;
+    --vault-border: 220 13% 91%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(262 83% 58%), hsl(262 83% 70%));
+    --gradient-vault: linear-gradient(135deg, hsl(0 0% 100%), hsl(210 20% 98%));
+    --gradient-gold: linear-gradient(135deg, hsl(47 96% 53%), hsl(45 93% 47%));
+    
+    /* Shadows */
+    --shadow-glow: 0 0 40px hsl(262 83% 58% / 0.3);
+    --shadow-card: 0 10px 30px -10px hsl(220 13% 91% / 0.5);
+    
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  /* Dark mode theme */
+  .dark {
     --background: 225 15% 8%;
     --foreground: 210 40% 98%;
 
@@ -52,56 +114,6 @@ All colors MUST be HSL.
     --shadow-glow: 0 0 40px hsl(262 83% 58% / 0.3);
     --shadow-card: 0 10px 30px -10px hsl(225 15% 5% / 0.5);
     
-    /* Animations */
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-    --radius: 0.5rem;
-
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;

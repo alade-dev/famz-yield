@@ -1,12 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Settings, TrendingUp, Users, Lock, ArrowRight, Sparkles, Shield, ArrowDown } from "lucide-react";
+import {
+  Plus,
+  Settings,
+  TrendingUp,
+  Users,
+  Lock,
+  ArrowRight,
+  Sparkles,
+  Shield,
+  ArrowDown,
+  LayoutDashboard,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import VaultDepositModal from "@/components/VaultDepositModal";
+import UserPositions from "@/components/UserPositions";
+import { useVault } from "@/contexts/VaultContext";
 
 const Vaults = () => {
   const [isCreating, setIsCreating] = useState(false);
@@ -14,7 +28,16 @@ const Vaults = () => {
   const [description, setDescription] = useState("");
   const [wbtcAmount, setWbtcAmount] = useState("");
   const [stcoreAmount, setStcoreAmount] = useState("");
+  const [showUserVaults, setShowUserVaults] = useState(false);
   const { toast } = useToast();
+  const { positions, addPosition } = useVault();
+
+  // Automatically show user vaults if they exist
+  useEffect(() => {
+    if (positions.length > 0) {
+      setShowUserVaults(true);
+    }
+  }, [positions.length]);
 
   const existingVaults = [
     {
@@ -24,33 +47,34 @@ const Vaults = () => {
       strategy: "wBTC + stCORE → lstBTC conversion",
       deposits: 89,
       status: "Active",
-      assets: "wBTC, stCORE"
+      assets: "wBTC, stCORE",
     },
     {
       name: "Dual Asset lstBTC Pro",
-      apy: "22.1%", 
+      apy: "22.1%",
       tvl: "$1.8M",
       strategy: "Enhanced lstBTC yield optimization",
       deposits: 156,
       status: "Active",
-      assets: "wBTC, stCORE"
+      assets: "wBTC, stCORE",
     },
     {
       name: "Core lstBTC Maximizer",
       apy: "26.3%",
-      tvl: "$2.1M", 
+      tvl: "$2.1M",
       strategy: "Maximum yield lstBTC strategy",
       deposits: 67,
       status: "Active",
-      assets: "wBTC, stCORE"
-    }
+      assets: "wBTC, stCORE",
+    },
   ];
 
   const handleCreateVault = () => {
     if (!vaultName || !wbtcAmount || !stcoreAmount) {
       toast({
         title: "Error",
-        description: "Please fill in all required fields including both wBTC and stCORE amounts",
+        description:
+          "Please fill in all required fields including both wBTC and stCORE amounts",
         variant: "destructive",
       });
       return;
@@ -58,7 +82,7 @@ const Vaults = () => {
 
     const wbtcNum = parseFloat(wbtcAmount);
     const stcoreNum = parseFloat(stcoreAmount);
-    
+
     if (wbtcNum <= 0 || stcoreNum <= 0) {
       toast({
         title: "Error",
@@ -67,6 +91,17 @@ const Vaults = () => {
       });
       return;
     }
+
+    // Add the new position to the vault context
+    const lstbtcAmount = parseFloat(calculateLstBtc());
+    addPosition({
+      vaultName: vaultName,
+      wbtcDeposited: wbtcNum,
+      stcoreDeposited: stcoreNum,
+      lstbtcGenerated: lstbtcAmount,
+      currentValue: wbtcNum * 30000 + stcoreNum * 0.5, // Simplified value calculation
+      apy: "24.8%", // Default APY
+    });
 
     toast({
       title: "lstBTC Vault Created Successfully!",
@@ -79,6 +114,7 @@ const Vaults = () => {
     setWbtcAmount("");
     setStcoreAmount("");
     setIsCreating(false);
+    setShowUserVaults(true); // Show user vaults after creation
   };
 
   // Calculate expected lstBTC based on inputs
@@ -86,7 +122,7 @@ const Vaults = () => {
     const wbtc = parseFloat(wbtcAmount) || 0;
     const stcore = parseFloat(stcoreAmount) || 0;
     // Simplified calculation for demonstration
-    return ((wbtc * 0.95) + (stcore * 0.0001)).toFixed(6);
+    return (wbtc * 0.95 + stcore * 0.0001).toFixed(6);
   };
 
   if (isCreating) {
@@ -95,7 +131,9 @@ const Vaults = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Create lstBTC Vault</h1>
-            <p className="text-muted-foreground">Deploy a dual-asset vault on Core Testnet</p>
+            <p className="text-muted-foreground">
+              Deploy a dual-asset vault on Core Testnet
+            </p>
           </div>
           <Button variant="outline" onClick={() => setIsCreating(false)}>
             Back to Vaults
@@ -128,7 +166,7 @@ const Vaults = () => {
                 <Shield className="w-5 h-5 text-primary" />
                 <h3 className="text-lg font-semibold">Required Assets</h3>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="wbtcAmount">wBTC Amount *</Label>
@@ -186,8 +224,12 @@ const Vaults = () => {
                   </div>
                   <ArrowDown className="w-6 h-6 text-primary mx-auto" />
                   <div className="text-center">
-                    <p className="text-sm text-muted-foreground">Expected lstBTC</p>
-                    <p className="text-xl font-bold text-gold">{calculateLstBtc()} lstBTC</p>
+                    <p className="text-sm text-muted-foreground">
+                      Expected lstBTC
+                    </p>
+                    <p className="text-xl font-bold text-gold">
+                      {calculateLstBtc()} lstBTC
+                    </p>
                   </div>
                 </div>
               </Card>
@@ -214,27 +256,39 @@ const Vaults = () => {
               <div className="space-y-2 text-sm text-muted-foreground">
                 <div className="flex items-start space-x-2">
                   <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></span>
-                  <span><strong>Wrapped BTC and LST Integration:</strong> Both wBTC and stCORE are converted into lstBTC at the custodian</span>
+                  <span>
+                    <strong>Wrapped BTC and LST Integration:</strong> Both wBTC
+                    and stCORE are converted into lstBTC at the custodian
+                  </span>
                 </div>
                 <div className="flex items-start space-x-2">
                   <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></span>
-                  <span><strong>Yield Generation:</strong> lstBTC generates yield by combining liquid staking benefits with BTC exposure</span>
+                  <span>
+                    <strong>Yield Generation:</strong> lstBTC generates yield by
+                    combining liquid staking benefits with BTC exposure
+                  </span>
                 </div>
                 <div className="flex items-start space-x-2">
                   <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></span>
-                  <span><strong>Custodian-Based Conversion:</strong> Trusted custodian ensures security and transparency</span>
+                  <span>
+                    <strong>Custodian-Based Conversion:</strong> Trusted
+                    custodian ensures security and transparency
+                  </span>
                 </div>
                 <div className="flex items-start space-x-2">
                   <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></span>
-                  <span><strong>Liquidity & Flexibility:</strong> Withdraw or convert lstBTC back to original assets anytime</span>
+                  <span>
+                    <strong>Liquidity & Flexibility:</strong> Withdraw or
+                    convert lstBTC back to original assets anytime
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Deploy Button */}
-            <Button 
-              onClick={handleCreateVault} 
-              className="w-full" 
+            <Button
+              onClick={handleCreateVault}
+              className="w-full"
               variant="default"
               disabled={!vaultName || !wbtcAmount || !stcoreAmount}
             >
@@ -252,15 +306,39 @@ const Vaults = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Yield Vaults</h1>
-          <p className="text-muted-foreground">Optimized strategies on Core Testnet</p>
+          <p className="text-muted-foreground">
+            Optimized strategies on Core Testnet
+          </p>
         </div>
-        <Button onClick={() => setIsCreating(true)} variant="default">
-          <Plus className="w-4 h-4 mr-2" />
-          Create Vault
-        </Button>
+        <div className="flex items-center space-x-4">
+          <Link to="/dashboard">
+            <Button variant="outline" className="flex items-center">
+              <LayoutDashboard className="w-4 h-4 mr-2" />
+              Dashboard
+            </Button>
+          </Link>
+          {positions.length > 0 && (
+            <Button
+              onClick={() => setShowUserVaults(!showUserVaults)}
+              variant={showUserVaults ? "default" : "outline"}
+            >
+              Your Vaults
+              {positions.length > 0 && (
+                <span className="ml-2 bg-primary/20 text-white/70 px-1.5 py-0.5 rounded-full text-xs">
+                  {positions.length}
+                </span>
+              )}
+            </Button>
+          )}
+          <Button onClick={() => setIsCreating(true)} variant="default">
+            <Plus className="w-4 h-4 mr-2" />
+            Create Vault
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-vault border-vault-border">
           <CardContent className="p-4">
@@ -309,14 +387,20 @@ const Vaults = () => {
       </div>
 
       {/* Vault Grid */}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {existingVaults.map((vault, index) => (
-          <Card key={index} className="bg-gradient-vault border-vault-border hover:border-primary/50 transition-all duration-300 hover:shadow-card">
+          <Card
+            key={index}
+            className="bg-gradient-vault border-vault-border hover:border-primary/50 transition-all duration-300 hover:shadow-card"
+          >
             <CardHeader className="pb-4">
               <div className="flex items-start justify-between">
                 <div>
                   <CardTitle className="text-lg">{vault.name}</CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">{vault.strategy}</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {vault.strategy}
+                  </p>
                 </div>
                 <span className="px-2 py-1 bg-gold/10 text-gold text-xs rounded-full border border-gold/20">
                   {vault.status}
@@ -334,7 +418,7 @@ const Vaults = () => {
                   <p className="text-xl font-bold">{vault.tvl}</p>
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Required Assets</span>
@@ -346,8 +430,8 @@ const Vaults = () => {
                 </div>
               </div>
 
-               <div className="flex space-x-2">
-                <VaultDepositModal 
+              <div className="flex space-x-2">
+                <VaultDepositModal
                   vaultName={vault.name}
                   apy={vault.apy}
                   strategy={vault.strategy}
@@ -365,6 +449,22 @@ const Vaults = () => {
           </Card>
         ))}
       </div>
+
+      {/* User Vaults Section - Show at the bottom when toggled */}
+      {showUserVaults && positions.length > 0 && (
+        <div className="mt-8 animate-fade-in">
+          <Card className="bg-gradient-vault border-vault-border p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Your Vault Positions</h2>
+              <span className="text-sm text-muted-foreground">
+                {positions.length} active{" "}
+                {positions.length === 1 ? "position" : "positions"}
+              </span>
+            </div>
+            <UserPositions />
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
