@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { ArrowRight, ArrowDown, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useVault } from "@/contexts/VaultContext";
+import { useWalletConnection } from "@/hooks/useWalletConnection";
 
 interface VaultDepositModalProps {
   children: React.ReactNode;
@@ -32,6 +33,7 @@ const VaultDepositModal = ({
   const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
   const { addPosition, userBalances, setUserBalances } = useVault();
+  const { requireWalletConnection } = useWalletConnection();
 
   // Calculate expected lstBTC based on inputs
   const calculateLstBtc = () => {
@@ -50,6 +52,11 @@ const VaultDepositModal = ({
   };
 
   const handleDeposit = () => {
+    // Check wallet connection first
+    if (!requireWalletConnection("deposit to this vault")) {
+      return;
+    }
+
     if (!wbtcAmount || !stcoreAmount) {
       toast({
         title: "Error",

@@ -13,26 +13,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
-import { useAccount } from 'wagmi';
+import { useAccount } from "wagmi";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
 const Landing = () => {
-  const { isConnected } = useAccount();
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   const handleStartEarning = (e: React.MouseEvent) => {
-    if (!isConnected) {
-      e.preventDefault();
-      toast({
-        title: "Wallet not connected",
-        description: "Please connect your wallet to start earning.",
-        variant: "destructive",
-      });
-    } else {
-      navigate("/dashboard");
-    }
+    navigate("/dashboard");
+  };
+
+  const handleExploreVaults = (e: React.MouseEvent) => {
+    navigate("/vaults");
   };
 
   return (
@@ -345,11 +338,9 @@ const Landing = () => {
                 Launch App
                 <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
               </Button>
-              <Link to="/vaults">
-                <Button variant="outline" size="lg">
-                  Explore Vaults
-                </Button>
-              </Link>
+              <Button variant="outline" size="lg" onClick={handleExploreVaults}>
+                Explore Vaults
+              </Button>
             </div>
           </div>
         </div>

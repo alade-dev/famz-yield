@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import React from "react";
 import { useVault } from "@/contexts/VaultContext";
+import { useWalletConnection } from "@/hooks/useWalletConnection";
 
 interface DepositModalProps {
   children: React.ReactNode;
@@ -56,6 +57,7 @@ const DepositModal = ({
   }, [isOpen, initialTab]);
   const { toast } = useToast();
   const { userBalances, setUserBalances } = useVault();
+  const { requireWalletConnection } = useWalletConnection();
 
   const tokens = [
     {
@@ -249,6 +251,15 @@ const DepositModal = ({
           <Button
             className="w-full mt-4"
             onClick={() => {
+              // Check wallet connection first
+              if (
+                !requireWalletConnection(
+                  tab === "stake" ? "deposit assets" : "withdraw assets"
+                )
+              ) {
+                return;
+              }
+
               if (!selectedToken || !amount) {
                 toast({
                   title: "Error",

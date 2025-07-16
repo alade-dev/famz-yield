@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Plus,
   Settings,
@@ -21,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import VaultDepositModal from "@/components/VaultDepositModal";
 import UserPositions from "@/components/UserPositions";
 import { useVault } from "@/contexts/VaultContext";
+import { useWalletConnection } from "@/hooks/useWalletConnection";
 
 const Vaults = () => {
   const [isCreating, setIsCreating] = useState(false);
@@ -30,14 +32,22 @@ const Vaults = () => {
   const [stcoreAmount, setStcoreAmount] = useState("");
   const [showUserVaults, setShowUserVaults] = useState(false);
   const { toast } = useToast();
-  const { positions, addPosition, userBalances, setUserBalances } = useVault();
+  const {
+    positions,
+    addPosition,
+    userBalances,
+    setUserBalances,
+    isWalletConnected,
+    isDataLoaded,
+  } = useVault();
+  const { requireWalletConnection } = useWalletConnection();
 
-  // Automatically show user vaults if they exist
+  // Automatically show user vaults if they exist and wallet is connected
   useEffect(() => {
-    if (positions.length > 0) {
+    if (isWalletConnected && isDataLoaded && positions.length > 0) {
       setShowUserVaults(true);
     }
-  }, [positions.length]);
+  }, [positions.length, isWalletConnected, isDataLoaded]);
 
   const existingVaults = [
     {
@@ -46,93 +56,105 @@ const Vaults = () => {
       tvl: "$3.2M",
       strategy: "wBTC + stCORE → lstBTC conversion",
       deposits: 89,
-      status: "Active",
-      assets: "wBTC, stCORE",
+      description: "Optimized yield farming with BTC and CORE assets",
+      riskLevel: "Medium",
+      lockPeriod: "Flexible",
+      fees: "0.5%",
     },
     {
-      name: "Dual Asset lstBTC Pro",
-      apy: "22.1%",
+      name: "High-Yield stCORE Vault",
+      apy: "18.5%",
       tvl: "$1.8M",
-      strategy: "Enhanced lstBTC yield optimization",
-      deposits: 156,
-      status: "Active",
-      assets: "wBTC, stCORE",
+      strategy: "stCORE staking with compound rewards",
+      deposits: 64,
+      description: "Maximize stCORE yields with automated compounding",
+      riskLevel: "Low",
+      lockPeriod: "7 days",
+      fees: "0.3%",
     },
     {
-      name: "Core lstBTC Maximizer",
-      apy: "26.3%",
-      tvl: "$2.1M",
-      strategy: "Maximum yield lstBTC strategy",
-      deposits: 67,
-      status: "Active",
-      assets: "wBTC, stCORE",
+      name: "Balanced Growth Vault",
+      apy: "15.2%",
+      tvl: "$4.1M",
+      strategy: "Diversified DeFi portfolio",
+      deposits: 142,
+      description: "Balanced approach to DeFi yield generation",
+      riskLevel: "Low-Medium",
+      lockPeriod: "Flexible",
+      fees: "0.4%",
     },
   ];
 
-  const handleCreateVault = () => {
-    if (!vaultName || !wbtcAmount || !stcoreAmount) {
+  const handleCreateVault = async () => {
+    if (!requireWalletConnection("create a vault")) {
+      return;
+    }
+
+    if (!vaultName.trim()) {
       toast({
         title: "Error",
-        description:
-          "Please fill in all required fields including both wBTC and stCORE amounts",
+        description: "Please enter a vault name",
         variant: "destructive",
       });
       return;
     }
 
-    const wbtcNum = parseFloat(wbtcAmount);
-    const stcoreNum = parseFloat(stcoreAmount);
+    const wbtcValue = parseFloat(wbtcAmount) || 0;
+    const stcoreValue = parseFloat(stcoreAmount) || 0;
 
-    if (wbtcNum <= 0 || stcoreNum <= 0) {
+    if (wbtcValue <= 0 && stcoreValue <= 0) {
       toast({
         title: "Error",
-        description: "Both wBTC and stCORE amounts must be greater than 0",
+        description: "Please enter valid amounts for wBTC or stCORE",
         variant: "destructive",
       });
       return;
     }
 
     // Check if user has sufficient balance
-    if (wbtcNum > userBalances.wbtc) {
+    if (wbtcValue > userBalances.wbtc) {
       toast({
-        title: "Insufficient wBTC Balance",
-        description: `You need ${wbtcNum.toFixed(
+        title: "Insufficient Balance",
+        description: `You only have ${userBalances.wbtc.toFixed(
           6
-        )} wBTC but only have ${userBalances.wbtc.toFixed(6)} wBTC available`,
+        )} wBTC available`,
         variant: "destructive",
       });
       return;
     }
 
-    if (stcoreNum > userBalances.stcore) {
+    if (stcoreValue > userBalances.stcore) {
       toast({
-        title: "Insufficient stCORE Balance",
-        description: `You need ${stcoreNum.toLocaleString()} stCORE but only have ${userBalances.stcore.toLocaleString()} stCORE available`,
+        title: "Insufficient Balance",
+        description: `You only have ${userBalances.stcore.toLocaleString()} stCORE available`,
         variant: "destructive",
       });
       return;
     }
 
-    // Deduct amounts from user balances
+    // Deduct from user balance
     setUserBalances((prev) => ({
-      wbtc: prev.wbtc - wbtcNum,
-      stcore: prev.stcore - stcoreNum,
+      wbtc: prev.wbtc - wbtcValue,
+      stcore: prev.stcore - stcoreValue,
     }));
 
-    // Add the new position to the vault context
-    const lstbtcAmount = parseFloat(calculateLstBtc());
+    const totalValue = wbtcValue * 43000 + stcoreValue;
+    const lstbtcGenerated = totalValue * 0.95; // 5% fee
+
     addPosition({
-      vaultName: vaultName,
-      wbtcDeposited: wbtcNum,
-      stcoreDeposited: stcoreNum,
-      lstbtcGenerated: lstbtcAmount,
-      currentValue: wbtcNum * 30000 + stcoreNum * 0.5, // Simplified value calculation
-      apy: "24.8%", // Default APY
+      vaultName: vaultName.trim(),
+      wbtcDeposited: wbtcValue,
+      stcoreDeposited: stcoreValue,
+      lstbtcGenerated,
+      currentValue: totalValue,
+      apy: "12.5%",
     });
 
     toast({
-      title: "lstBTC Vault Created Successfully!",
-      description: `${vaultName} has been deployed on Core Testnet with ${wbtcAmount} wBTC and ${stcoreAmount} stCORE`,
+      title: "Vault Created Successfully!",
+      description: `${vaultName} has been created with ${lstbtcGenerated.toFixed(
+        2
+      )} lstBTC`,
     });
 
     // Reset form
@@ -141,390 +163,282 @@ const Vaults = () => {
     setWbtcAmount("");
     setStcoreAmount("");
     setIsCreating(false);
-    setShowUserVaults(true); // Show user vaults after creation
+    setShowUserVaults(true);
   };
 
-  // Calculate expected lstBTC based on inputs
-  const calculateLstBtc = () => {
-    const wbtc = parseFloat(wbtcAmount) || 0;
-    const stcore = parseFloat(stcoreAmount) || 0;
-    // Simplified calculation for demonstration
-    return (wbtc * 0.95 + stcore * 0.0001).toFixed(6);
-  };
-
-  if (isCreating) {
-    return (
-      <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
+  // Component for showing wallet connection required message
+  const WalletConnectionRequired = ({ message }: { message: string }) => (
+    <Alert className="border-yellow-500/20 bg-yellow-500/10">
+      <Shield className="h-4 w-4 text-yellow-500" />
+      <AlertDescription className="text-yellow-700 dark:text-yellow-400">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Create lstBTC Vault</h1>
-            <p className="text-muted-foreground">
-              Deploy a dual-asset vault on Core Testnet
-            </p>
-          </div>
-          <Button variant="outline" onClick={() => setIsCreating(false)}>
-            Back to Vaults
-          </Button>
+          <span>{message}</span>
+          <Lock className="h-4 w-4 ml-2" />
         </div>
-
-        <Card className="bg-gradient-vault border-vault-border">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Plus className="w-5 h-5 text-primary" />
-              <span>lstBTC Vault Configuration</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Vault Name */}
-            <div className="space-y-2">
-              <Label htmlFor="vaultName">Vault Name *</Label>
-              <Input
-                id="vaultName"
-                placeholder="e.g. My lstBTC Yield Vault"
-                value={vaultName}
-                onChange={(e) => setVaultName(e.target.value)}
-                className="bg-muted border-vault-border"
-              />
-            </div>
-
-            {/* Dual Asset Requirements */}
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2 mb-4">
-                <Shield className="w-5 h-5 text-primary" />
-                <h3 className="text-lg font-semibold">Required Assets</h3>
-              </div>
-
-              {/* Available Balance Display */}
-              <div className="p-4 bg-muted/30 rounded-lg border border-vault-border">
-                <h4 className="text-sm font-medium mb-3 text-muted-foreground">
-                  Available Balance
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center justify-between p-2 bg-background/50 rounded">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-lg">₿</span>
-                      <span className="text-sm font-medium">wBTC</span>
-                    </div>
-                    <span className="text-sm font-bold">
-                      {userBalances.wbtc.toFixed(6)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 bg-background/50 rounded">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-lg">⚡</span>
-                      <span className="text-sm font-medium">stCORE</span>
-                    </div>
-                    <span className="text-sm font-bold">
-                      {userBalances.stcore.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="wbtcAmount">wBTC Amount *</Label>
-                  <div className="relative">
-                    <Input
-                      id="wbtcAmount"
-                      type="number"
-                      placeholder="0.1"
-                      value={wbtcAmount}
-                      onChange={(e) => setWbtcAmount(e.target.value)}
-                      className="bg-muted border-vault-border pr-16"
-                      step="0.00001"
-                    />
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground flex items-center space-x-1">
-                      <span>₿</span>
-                      <span>wBTC</span>
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Available: {userBalances.wbtc.toFixed(6)} wBTC
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="stcoreAmount">stCORE Amount *</Label>
-                  <div className="relative">
-                    <Input
-                      id="stcoreAmount"
-                      type="number"
-                      placeholder="1000"
-                      value={stcoreAmount}
-                      onChange={(e) => setStcoreAmount(e.target.value)}
-                      className="bg-muted border-vault-border pr-16"
-                      step="1"
-                    />
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground flex items-center space-x-1">
-                      <span>⚡</span>
-                      <span>stCORE</span>
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Available: {userBalances.stcore.toLocaleString()} stCORE
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Conversion Preview */}
-            {wbtcAmount && stcoreAmount && (
-              <Card className="p-4 bg-gradient-primary/10 border-primary/20">
-                <div className="text-center space-y-3">
-                  <div className="flex items-center justify-center space-x-4">
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground">wBTC</p>
-                      <p className="font-bold">{wbtcAmount}</p>
-                    </div>
-                    <span className="text-muted-foreground">+</span>
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground">stCORE</p>
-                      <p className="font-bold">{stcoreAmount}</p>
-                    </div>
-                  </div>
-                  <ArrowDown className="w-6 h-6 text-primary mx-auto" />
-                  <div className="text-center">
-                    <p className="text-sm text-muted-foreground">
-                      Expected lstBTC
-                    </p>
-                    <p className="text-xl font-bold text-gold">
-                      {calculateLstBtc()} lstBTC
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            )}
-
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">Vault Description</Label>
-              <Textarea
-                id="description"
-                placeholder="Describe your vault's purpose and strategy..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="bg-muted border-vault-border min-h-[80px]"
-              />
-            </div>
-
-            {/* Strategy Explanation */}
-            <div className="p-4 bg-vault-border/20 border border-vault-border rounded-lg space-y-3">
-              <h4 className="font-medium text-gold flex items-center space-x-2">
-                <Sparkles className="w-4 h-4" />
-                <span>lstBTC Vault Strategy</span>
-              </h4>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <div className="flex items-start space-x-2">
-                  <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></span>
-                  <span>
-                    <strong>Wrapped BTC and LST Integration:</strong> Both wBTC
-                    and stCORE are converted into lstBTC at the custodian
-                  </span>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></span>
-                  <span>
-                    <strong>Yield Generation:</strong> lstBTC generates yield by
-                    combining liquid staking benefits with BTC exposure
-                  </span>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></span>
-                  <span>
-                    <strong>Custodian-Based Conversion:</strong> Trusted
-                    custodian ensures security and transparency
-                  </span>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></span>
-                  <span>
-                    <strong>Liquidity & Flexibility:</strong> Withdraw or
-                    convert lstBTC back to original assets anytime
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Deploy Button */}
-            <Button
-              onClick={handleCreateVault}
-              className="w-full"
-              variant="default"
-              disabled={!vaultName || !wbtcAmount || !stcoreAmount}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Deploy lstBTC Vault on Core Testnet
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+      </AlertDescription>
+    </Alert>
+  );
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-8 animate-fade-in">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Yield Vaults</h1>
+          <h1 className="text-3xl font-bold mb-2">Vault Management</h1>
           <p className="text-muted-foreground">
-            Optimized strategies on Core Testnet
+            Create and manage your DeFi yield farming vaults
           </p>
         </div>
-        <div className="flex items-center space-x-4">
+        <Button asChild variant="outline">
           <Link to="/dashboard">
-            <Button variant="outline" className="flex items-center">
-              <LayoutDashboard className="w-4 h-4 mr-2" />
-              Dashboard
-            </Button>
+            <LayoutDashboard className="w-4 h-4 mr-2" />
+            Dashboard
           </Link>
-          {positions.length > 0 && (
-            <Button
-              onClick={() => setShowUserVaults(!showUserVaults)}
-              variant={showUserVaults ? "default" : "outline"}
-            >
-              Your Vaults
-              {positions.length > 0 && (
-                <span className="ml-2 bg-primary/20 text-white/70 px-1.5 py-0.5 rounded-full text-xs">
-                  {positions.length}
-                </span>
-              )}
-            </Button>
-          )}
-          <Button onClick={() => setIsCreating(true)} variant="default">
-            <Plus className="w-4 h-4 mr-2" />
-            Create Vault
-          </Button>
+        </Button>
+      </div>
+
+      {/* Security Notice */}
+      {!isWalletConnected && (
+        <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg p-6">
+          <div className="flex items-center space-x-3 mb-3">
+            <Shield className="h-6 w-6 text-blue-500" />
+            <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-400">
+              Secure Vault Management
+            </h3>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            Your vault data is encrypted and wallet-protected. Connect your
+            wallet to access your secure vault positions and create new vaults.
+          </p>
+          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+            <Lock className="h-4 w-4" />
+            <span>
+              Encrypted storage • Wallet authentication • Secure transactions
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Stats Cards */}
+      {/* Available Vaults */}
+      <Card className="bg-gradient-vault border-vault-border">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Sparkles className="w-5 h-5 text-primary" />
+            <span>Available Vaults</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {existingVaults.map((vault, index) => (
+              <Card
+                key={index}
+                className="border-muted/20 hover:border-primary/20 transition-colors"
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">{vault.name}</CardTitle>
+                    <span className="text-sm text-green-500 font-medium">
+                      {vault.apy}
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">TVL</p>
+                      <p className="font-medium">{vault.tvl}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Deposits</p>
+                      <p className="font-medium">{vault.deposits}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-sm">Strategy</p>
+                    <p className="text-sm">{vault.strategy}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <p className="text-muted-foreground">Risk</p>
+                      <p className="font-medium">{vault.riskLevel}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Lock</p>
+                      <p className="font-medium">{vault.lockPeriod}</p>
+                    </div>
+                  </div>
+                  <VaultDepositModal
+                    vaultName={vault.name}
+                    apy={vault.apy}
+                    strategy={vault.strategy}
+                  >
+                    <Button className="w-full" size="sm">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Deposit
+                    </Button>
+                  </VaultDepositModal>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-vault border-vault-border">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total TVL</p>
-                <p className="text-2xl font-bold text-gold">$5.1M</p>
-              </div>
-              <TrendingUp className="w-8 h-8 text-gold" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-vault border-vault-border">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Active Vaults</p>
-                <p className="text-2xl font-bold">12</p>
-              </div>
-              <Lock className="w-8 h-8 text-primary" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-vault border-vault-border">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Avg APY</p>
-                <p className="text-2xl font-bold text-gold">19.2%</p>
-              </div>
-              <TrendingUp className="w-8 h-8 text-primary" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-vault border-vault-border">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Users</p>
-                <p className="text-2xl font-bold">1,247</p>
-              </div>
-              <Users className="w-8 h-8 text-primary" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Vault Grid */}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {existingVaults.map((vault, index) => (
-          <Card
-            key={index}
-            className="bg-gradient-vault border-vault-border hover:border-primary/50 transition-all duration-300 hover:shadow-card"
-          >
-            <CardHeader className="pb-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg">{vault.name}</CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {vault.strategy}
+      {/* Create New Vault */}
+      <Card className="bg-gradient-vault border-vault-border">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Plus className="w-5 h-5 text-primary" />
+            <span>Create New Vault</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isWalletConnected && isDataLoaded ? (
+            <>
+              {!isCreating ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-4">
+                    Create your own custom vault with your preferred assets
                   </p>
-                </div>
-                <span className="px-2 py-1 bg-gold/10 text-gold text-xs rounded-full border border-gold/20">
-                  {vault.status}
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">APY</p>
-                  <p className="text-xl font-bold text-gold">{vault.apy}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">TVL</p>
-                  <p className="text-xl font-bold">{vault.tvl}</p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Required Assets</span>
-                  <span className="font-medium text-xs">{vault.assets}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Deposits</span>
-                  <span className="font-medium">{vault.deposits} users</span>
-                </div>
-              </div>
-
-              <div className="flex space-x-2">
-                <VaultDepositModal
-                  vaultName={vault.name}
-                  apy={vault.apy}
-                  strategy={vault.strategy}
-                >
-                  <Button variant="default" className="flex-1 group">
-                    <span>Deposit</span>
-                    <ArrowRight className="w-3 h-3 ml-1 group-hover:translate-x-0.5 transition-transform" />
+                  <Button onClick={() => setIsCreating(true)} size="lg">
+                    <Plus className="w-5 h-5 mr-2" />
+                    Create Vault
                   </Button>
-                </VaultDepositModal>
-                <Button variant="outline" size="sm">
-                  <Settings className="w-4 h-4" />
-                </Button>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="vaultName">Vault Name</Label>
+                        <Input
+                          id="vaultName"
+                          placeholder="Enter vault name"
+                          value={vaultName}
+                          onChange={(e) => setVaultName(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="description">
+                          Description (Optional)
+                        </Label>
+                        <Textarea
+                          id="description"
+                          placeholder="Describe your vault strategy"
+                          value={description}
+                          onChange={(e) => setDescription(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="wbtcAmount">wBTC Amount</Label>
+                        <Input
+                          id="wbtcAmount"
+                          type="number"
+                          placeholder="0.00"
+                          value={wbtcAmount}
+                          onChange={(e) => setWbtcAmount(e.target.value)}
+                          step="0.000001"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Available: {userBalances.wbtc.toFixed(6)} wBTC
+                        </p>
+                      </div>
+                      <div>
+                        <Label htmlFor="stcoreAmount">stCORE Amount</Label>
+                        <Input
+                          id="stcoreAmount"
+                          type="number"
+                          placeholder="0"
+                          value={stcoreAmount}
+                          onChange={(e) => setStcoreAmount(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Available: {userBalances.stcore.toLocaleString()}{" "}
+                          stCORE
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex space-x-4">
+                    <Button onClick={handleCreateVault} className="flex-1">
+                      Create Vault
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsCreating(false)}
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 space-y-4">
+              <Lock className="h-12 w-12 text-muted-foreground/50" />
+              <div className="text-center">
+                <p className="text-lg font-medium text-muted-foreground">
+                  Vault Creation Protected
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Connect your wallet to create and manage custom vaults
+                </p>
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      {/* User Vaults Section - Show at the bottom when toggled */}
-      {showUserVaults && positions.length > 0 && (
-        <div className="mt-8 animate-fade-in">
-          <Card className="bg-gradient-vault border-vault-border p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Your Vault Positions</h2>
+      {/* User Vaults */}
+      <Card className="bg-gradient-vault border-vault-border">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center space-x-2">
+              <Users className="w-5 h-5 text-primary" />
+              <span>Your Vault Positions</span>
+            </CardTitle>
+            {isWalletConnected && isDataLoaded && (
               <span className="text-sm text-muted-foreground">
                 {positions.length} active{" "}
                 {positions.length === 1 ? "position" : "positions"}
               </span>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isWalletConnected && isDataLoaded ? (
+            showUserVaults ? (
+              <UserPositions />
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">
+                  No vault positions found. Create your first vault to get
+                  started.
+                </p>
+                <Button onClick={() => setIsCreating(true)} variant="outline">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create First Vault
+                </Button>
+              </div>
+            )
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 space-y-4">
+              <Shield className="h-12 w-12 text-muted-foreground/50" />
+              <div className="text-center">
+                <p className="text-lg font-medium text-muted-foreground">
+                  Vault Positions Secured
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Your vault positions are encrypted and wallet-protected
+                </p>
+              </div>
             </div>
-            <UserPositions />
-          </Card>
-        </div>
-      )}
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
