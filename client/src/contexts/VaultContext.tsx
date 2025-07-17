@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
 import { useAccount } from "wagmi";
 import { useSecureStorage } from "@/lib/secureStorage";
 
@@ -74,6 +81,10 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
   const [earningsHistory, setEarningsHistory] = useState<EarningsHistory[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
+  // Use ref to track if we're currently updating earnings to prevent loops
+  const isUpdatingEarnings = useRef(false);
+  const lastUpdateTime = useRef<number>(0);
+
   // Define expected data structures for validation
   const expectedVaultPosition: VaultPosition = {
     id: "",
@@ -101,6 +112,83 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const expectedUserBalances = { wbtc: 0, stcore: 0 };
+
+  // Memoized updateEarnings function to prevent infinite loops
+  const updateEarnings = useCallback(() => {
+    if (!isConnected || !isDataLoaded) return;
+
+    // Prevent multiple simultaneous updates
+    if (isUpdatingEarnings.current) return;
+
+    // Only update if at least 5 minutes have passed since last update
+    const now = Date.now();
+    if (now - lastUpdateTime.current < 5 * 60 * 1000) return;
+
+    isUpdatingEarnings.current = true;
+    lastUpdateTime.current = now;
+
+    setPositions((currentPositions) => {
+      const updatedPositions = currentPositions.map((position) => {
+        const depositDate = new Date(position.depositDate);
+        const currentTime = new Date();
+
+        // Round to nearest hour to prevent micro-fluctuations
+        const hoursElapsed = Math.floor(
+          (currentTime.getTime() - depositDate.getTime()) / (1000 * 60 * 60)
+        );
+        const daysSinceDeposit = hoursElapsed / 24;
+
+        // Calculate earnings based on APY using initial value (not current value)
+        const apyNumber = parseFloat(position.apy.replace("%", ""));
+        const dailyRate = apyNumber / 365 / 100;
+        const initialValue =
+          position.initialValue ||
+          position.wbtcDeposited * 43000 + position.stcoreDeposited;
+
+        // Round earnings to prevent micro-fluctuations
+        const totalEarnings =
+          Math.round(initialValue * dailyRate * daysSinceDeposit * 100) / 100;
+
+        // Calculate proportional earnings for wBTC and stCORE based on lstBTC
+        const originalDeposit =
+          position.wbtcDeposited * 43000 + position.stcoreDeposited;
+        const wbtcProportion =
+          (position.wbtcDeposited * 43000) / originalDeposit;
+        const stcoreProportion = position.stcoreDeposited / originalDeposit;
+
+        // Convert lstBTC earnings to wBTC and stCORE equivalents with rounding
+        const lstbtcEarnings =
+          position.lstbtcGenerated * dailyRate * daysSinceDeposit;
+        const wbtcEarnings =
+          Math.round(lstbtcEarnings * wbtcProportion * 1000000) / 1000000; // Round to 6 decimals
+        const stcoreEarnings =
+          Math.round(lstbtcEarnings * stcoreProportion * 43000 * 100) / 100; // Round to 2 decimals
+
+        // Only update if values have actually changed significantly
+        const hasSignificantChange =
+          Math.abs(position.earnings - totalEarnings) > 0.01 ||
+          Math.abs(position.wbtcEarnings - wbtcEarnings) > 0.000001 ||
+          Math.abs(position.stcoreEarnings - stcoreEarnings) > 0.01;
+
+        if (!hasSignificantChange) {
+          return position; // Return unchanged position to prevent unnecessary updates
+        }
+
+        return {
+          ...position,
+          initialValue, // Ensure we have the initial value stored
+          earnings: Math.max(0, totalEarnings),
+          wbtcEarnings: Math.max(0, wbtcEarnings),
+          stcoreEarnings: Math.max(0, stcoreEarnings),
+          currentValue: Math.round((initialValue + totalEarnings) * 100) / 100, // Round current value
+          lastEarningsUpdate: currentTime.toISOString(),
+        };
+      });
+
+      isUpdatingEarnings.current = false;
+      return updatedPositions;
+    });
+  }, [isConnected, isDataLoaded]);
 
   // Load data when wallet connects
   useEffect(() => {
@@ -168,196 +256,169 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsDataLoaded(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected, address, getSecureItem, setSecureItem]);
+  }, [isConnected, address]);
 
   // Save positions to secure storage whenever they change (only if wallet connected)
+  // Use a separate effect with debouncing to prevent excessive saves
   useEffect(() => {
-    if (isConnected && address && isDataLoaded) {
-      setSecureItem("vaultPositions", positions);
+    if (isConnected && address && isDataLoaded && !isUpdatingEarnings.current) {
+      const timeoutId = setTimeout(() => {
+        setSecureItem("vaultPositions", positions);
+      }, 1000); // Debounce saves by 1 second
+
+      return () => clearTimeout(timeoutId);
     }
   }, [positions, isConnected, address, isDataLoaded, setSecureItem]);
 
   // Save balances to secure storage whenever they change (only if wallet connected)
   useEffect(() => {
     if (isConnected && address && isDataLoaded) {
-      setSecureItem("userBalances", userBalances);
+      const timeoutId = setTimeout(() => {
+        setSecureItem("userBalances", userBalances);
+      }, 1000); // Debounce saves by 1 second
+
+      return () => clearTimeout(timeoutId);
     }
   }, [userBalances, isConnected, address, isDataLoaded, setSecureItem]);
 
   // Save earnings history to secure storage whenever it changes (only if wallet connected)
   useEffect(() => {
     if (isConnected && address && isDataLoaded) {
-      setSecureItem("earningsHistory", earningsHistory);
+      const timeoutId = setTimeout(() => {
+        setSecureItem("earningsHistory", earningsHistory);
+      }, 1000); // Debounce saves by 1 second
+
+      return () => clearTimeout(timeoutId);
     }
   }, [earningsHistory, isConnected, address, isDataLoaded, setSecureItem]);
 
-  // Update earnings based on time elapsed and APY
-  const updateEarnings = () => {
-    if (!isConnected || !isDataLoaded) return;
+  // Update earnings every 15 minutes (only if wallet connected) - further reduced frequency for stability
+  useEffect(() => {
+    if (isConnected && isDataLoaded) {
+      // Initial update after a short delay to prevent immediate loops
+      const initialTimeout = setTimeout(() => {
+        updateEarnings();
+      }, 2000);
 
-    setPositions((currentPositions) =>
-      currentPositions.map((position) => {
-        const depositDate = new Date(position.depositDate);
-        const now = new Date();
+      const interval = setInterval(updateEarnings, 15 * 60 * 1000); // 15 minutes
 
-        // Round to nearest hour to prevent micro-fluctuations
-        const hoursElapsed = Math.floor(
-          (now.getTime() - depositDate.getTime()) / (1000 * 60 * 60)
-        );
-        const daysSinceDeposit = hoursElapsed / 24;
-
-        // Calculate earnings based on APY using initial value (not current value)
-        const apyNumber = parseFloat(position.apy.replace("%", ""));
-        const dailyRate = apyNumber / 365 / 100;
-        const initialValue =
-          position.initialValue ||
-          position.wbtcDeposited * 43000 + position.stcoreDeposited;
-
-        // Round earnings to prevent micro-fluctuations
-        const totalEarnings =
-          Math.round(initialValue * dailyRate * daysSinceDeposit * 100) / 100;
-
-        // Calculate proportional earnings for wBTC and stCORE based on lstBTC
-        const originalDeposit =
-          position.wbtcDeposited * 43000 + position.stcoreDeposited;
-        const wbtcProportion =
-          (position.wbtcDeposited * 43000) / originalDeposit;
-        const stcoreProportion = position.stcoreDeposited / originalDeposit;
-
-        // Convert lstBTC earnings to wBTC and stCORE equivalents with rounding
-        const lstbtcEarnings =
-          position.lstbtcGenerated * dailyRate * daysSinceDeposit;
-        const wbtcEarnings =
-          Math.round(lstbtcEarnings * wbtcProportion * 1000000) / 1000000; // Round to 6 decimals
-        const stcoreEarnings =
-          Math.round(lstbtcEarnings * stcoreProportion * 43000 * 100) / 100; // Round to 2 decimals
-
-        return {
-          ...position,
-          initialValue, // Ensure we have the initial value stored
-          earnings: Math.max(0, totalEarnings),
-          wbtcEarnings: Math.max(0, wbtcEarnings),
-          stcoreEarnings: Math.max(0, stcoreEarnings),
-          currentValue: Math.round((initialValue + totalEarnings) * 100) / 100, // Round current value
-          lastEarningsUpdate: now.toISOString(),
-        };
-      })
-    );
-  };
-
-  const addPosition = (
-    positionData: Omit<
-      VaultPosition,
-      | "id"
-      | "depositDate"
-      | "earnings"
-      | "wbtcEarnings"
-      | "stcoreEarnings"
-      | "initialValue"
-      | "lastEarningsUpdate"
-    >
-  ) => {
-    if (!isConnected || !isDataLoaded) {
-      console.warn(
-        "Cannot add position: wallet not connected or data not loaded"
-      );
-      return;
+      return () => {
+        clearTimeout(initialTimeout);
+        clearInterval(interval);
+      };
     }
+  }, [isConnected, isDataLoaded, updateEarnings]);
 
-    const initialValue =
-      positionData.wbtcDeposited * 43000 + positionData.stcoreDeposited;
-    const newPosition: VaultPosition = {
-      ...positionData,
-      id: Date.now().toString(),
-      depositDate: new Date().toISOString(),
-      initialValue,
-      earnings: 0,
-      wbtcEarnings: 0,
-      stcoreEarnings: 0,
-      lastEarningsUpdate: new Date().toISOString(),
-    };
+  const addPosition = useCallback(
+    (
+      positionData: Omit<
+        VaultPosition,
+        | "id"
+        | "depositDate"
+        | "earnings"
+        | "wbtcEarnings"
+        | "stcoreEarnings"
+        | "initialValue"
+        | "lastEarningsUpdate"
+      >
+    ) => {
+      if (!isConnected || !isDataLoaded) {
+        console.warn(
+          "Cannot add position: wallet not connected or data not loaded"
+        );
+        return;
+      }
 
-    setPositions((prev) => [...prev, newPosition]);
-  };
+      const initialValue =
+        positionData.wbtcDeposited * 43000 + positionData.stcoreDeposited;
+      const newPosition: VaultPosition = {
+        ...positionData,
+        id: Date.now().toString(),
+        depositDate: new Date().toISOString(),
+        initialValue,
+        earnings: 0,
+        wbtcEarnings: 0,
+        stcoreEarnings: 0,
+        lastEarningsUpdate: new Date().toISOString(),
+      };
 
-  const getTotalWbtcEarnings = () => {
+      setPositions((prev) => [...prev, newPosition]);
+    },
+    [isConnected, isDataLoaded]
+  );
+
+  const getTotalWbtcEarnings = useCallback(() => {
     if (!isConnected || !isDataLoaded) return 0;
     return positions.reduce(
       (total, position) => total + position.wbtcEarnings,
       0
     );
-  };
+  }, [isConnected, isDataLoaded, positions]);
 
-  const getTotalStcoreEarnings = () => {
+  const getTotalStcoreEarnings = useCallback(() => {
     if (!isConnected || !isDataLoaded) return 0;
     return positions.reduce(
       (total, position) => total + position.stcoreEarnings,
       0
     );
-  };
+  }, [isConnected, isDataLoaded, positions]);
 
-  const getTotalDeposited = () => {
+  const getTotalDeposited = useCallback(() => {
     if (!isConnected || !isDataLoaded) return 0;
     return positions.reduce(
       (total, position) => total + position.currentValue - position.earnings,
       0
     );
-  };
+  }, [isConnected, isDataLoaded, positions]);
 
-  const getTotalEarnings = () => {
+  const getTotalEarnings = useCallback(() => {
     if (!isConnected || !isDataLoaded) return 0;
     return positions.reduce((total, position) => total + position.earnings, 0);
-  };
+  }, [isConnected, isDataLoaded, positions]);
 
-  const getTotalValue = () => {
+  const getTotalValue = useCallback(() => {
     if (!isConnected || !isDataLoaded) return 0;
     return positions.reduce(
       (total, position) => total + position.currentValue,
       0
     );
-  };
+  }, [isConnected, isDataLoaded, positions]);
 
-  // Update earnings every 10 minutes (only if wallet connected) - reduced frequency for stability
-  useEffect(() => {
-    if (isConnected && isDataLoaded) {
-      const interval = setInterval(updateEarnings, 10 * 60 * 1000); // 10 minutes
-      updateEarnings(); // Initial update
-      return () => clearInterval(interval);
-    }
-  }, [isConnected, isDataLoaded]);
+  const closeVault = useCallback(
+    (id: string) => {
+      if (!isConnected || !isDataLoaded) {
+        console.warn(
+          "Cannot close vault: wallet not connected or data not loaded"
+        );
+        return;
+      }
 
-  const closeVault = (id: string) => {
-    if (!isConnected || !isDataLoaded) {
-      console.warn(
-        "Cannot close vault: wallet not connected or data not loaded"
-      );
-      return;
-    }
+      setPositions((prev) => {
+        const pos = prev.find((p) => p.id === id);
+        if (!pos) return prev;
 
-    setPositions((prev) => {
-      const pos = prev.find((p) => p.id === id);
-      if (!pos) return prev;
+        // Add earnings to history
+        const earningRecord: EarningsHistory = {
+          id: Date.now().toString(),
+          vaultId: pos.id,
+          date: new Date().toISOString(),
+          wbtcEarned: pos.wbtcEarnings,
+          stcoreEarned: pos.stcoreEarnings,
+          lstbtcValue: pos.lstbtcGenerated,
+        };
+        setEarningsHistory((prev) => [...prev, earningRecord]);
 
-      // Add earnings to history
-      const earningRecord: EarningsHistory = {
-        id: Date.now().toString(),
-        vaultId: pos.id,
-        date: new Date().toISOString(),
-        wbtcEarned: pos.wbtcEarnings,
-        stcoreEarned: pos.stcoreEarnings,
-        lstbtcValue: pos.lstbtcGenerated,
-      };
-      setEarningsHistory((prev) => [...prev, earningRecord]);
+        // Credit user with original deposits plus earnings from lstBTC
+        setUserBalances((bal) => ({
+          wbtc: bal.wbtc + pos.wbtcDeposited + pos.wbtcEarnings,
+          stcore: bal.stcore + pos.stcoreDeposited + pos.stcoreEarnings,
+        }));
 
-      // Credit user with original deposits plus earnings from lstBTC
-      setUserBalances((bal) => ({
-        wbtc: bal.wbtc + pos.wbtcDeposited + pos.wbtcEarnings,
-        stcore: bal.stcore + pos.stcoreDeposited + pos.stcoreEarnings,
-      }));
-
-      return prev.filter((p) => p.id !== id);
-    });
-  };
+        return prev.filter((p) => p.id !== id);
+      });
+    },
+    [isConnected, isDataLoaded]
+  );
 
   return (
     <VaultContext.Provider
