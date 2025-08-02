@@ -12,7 +12,7 @@ import "./interface/IEarn.sol";
 
 /**
  * @title Vault
- * @author Liquid Staking Team
+ * @author Team
  * @notice Core vault contract for depositing wBTC and LST to receive yield-bearing lstBTC
  * @dev Users deposit wBTC and LST to mint lstBTC. They can later redeem lstBTC to receive
  *      underlying assets back based on current BTC backing and deposit composition.

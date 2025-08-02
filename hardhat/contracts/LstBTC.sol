@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title LstBTC
- * @author Liquid Staking Team
+ * @author Team
  * @notice A yield-bearing ERC20 token representing liquid staked Bitcoin (BTC)
  * @dev 1 lstBTC is pegged to 1 BTC, with the exchange rate increasing over time as yield accrues
  *      Only the Vault contract is authorized to mint, burn, and update the exchange rate
