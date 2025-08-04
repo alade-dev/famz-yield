@@ -375,10 +375,12 @@ const Dashboard = () => {
               <TrendingUp className="w-4 h-4 mr-2" />
               Claim Rewards
             </Button>
-            <Button variant="outline" className="w-full">
-              <Vault className="w-4 h-4 mr-2" />
-              Manage Vaults
-            </Button>
+            <Link to="/vaults">
+              <Button variant="outline" className="w-full">
+                <Vault className="w-4 h-4 mr-2" />
+                Manage Vaults
+              </Button>
+            </Link>
           </div>
         </CardContent>
       </Card>

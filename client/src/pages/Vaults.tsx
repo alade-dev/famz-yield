@@ -618,9 +618,9 @@ const Vaults = () => {
                   </div>
 
                   {/* BTC Staked */}
-                  <div className="space-y-2">
+                  <div className="space-y-2 pb-4">
                     <div className="flex items-center justify-between">
-                      <Label className="text-sm">BTC Staked</Label>
+                      <Label className="text-sm">wBTC Staked</Label>
                       <Badge variant="outline">
                         {userBalances.wbtc > 0
                           ? `${((btcValue / userBalances.wbtc) * 100).toFixed(
@@ -678,9 +678,9 @@ const Vaults = () => {
                   </div>
 
                   {/* CORE Staked */}
-                  <div className="space-y-2 mt-8">
+                  <div className="space-y-2 pb-4">
                     <div className="flex items-center justify-between">
-                      <Label className="text-sm">CORE Staked</Label>
+                      <Label className="text-sm">stCORE Staked</Label>
                       <Badge variant="outline">
                         {userBalances.stcore > 0
                           ? `${(
@@ -691,7 +691,7 @@ const Vaults = () => {
                       </Badge>
                     </div>
                     <div className="relative">
-                      <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                      <div className="flex justify-between text-xs text-muted-foreground  mb-1">
                         <span>
                           {userBalances.stcore > 0
                             ? Math.round(userBalances.stcore * 0.25)
@@ -727,7 +727,7 @@ const Vaults = () => {
                         className="w-full"
                         disabled
                       />
-                      <div className="absolute -bottom-6 left-0">
+                      <div className="absolute  -bottom-6 left-0">
                         <Badge
                           variant="secondary"
                           className="bg-gold/20 text-gold"
@@ -767,7 +767,7 @@ const Vaults = () => {
             ) : (
               <div className="text-center py-8">
                 <p className="text-muted-foreground mb-4">
-                  No vault positions found. Use the staking calculator above to
+                  No vault positions found. Use the vault calculator above to
                   get started.
                 </p>
               </div>
