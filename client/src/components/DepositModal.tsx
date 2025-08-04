@@ -28,6 +28,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import React from "react";
 import { useVault } from "@/contexts/VaultContext";
+import { BitcoinIcon } from "@/components/icons/BitcoinIcon";
+import { CoreIcon } from "@/components/icons/CoreIcon";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
 
 interface DepositModalProps {
@@ -56,25 +58,31 @@ const DepositModal = ({
     if (isOpen) setTab(initialTab);
   }, [isOpen, initialTab]);
   const { toast } = useToast();
-  const { userBalances, setUserBalances } = useVault();
+  const { userBalances, setUserBalances, positions } = useVault();
   const { requireWalletConnection } = useWalletConnection();
 
   const tokens = [
     {
       symbol: "BTC",
       name: "Bitcoin",
-      balance: userBalances.wbtc.toFixed(6),
+      balance:
+        tab === "stake"
+          ? userBalances.btc.toFixed(6) // Show BTC balance when converting BTC→wBTC
+          : userBalances.wbtc.toFixed(6), // Show wBTC balance when converting wBTC→BTC
       apy: "8.2%",
-      icon: "₿",
+      icon: <BitcoinIcon size="sm" />,
       stakedSymbol: "wBTC",
       stakedName: "Wrapped Bitcoin",
     },
     {
       symbol: "CORE",
       name: "CORE",
-      balance: userBalances.stcore.toLocaleString(),
+      balance:
+        tab === "stake"
+          ? userBalances.core.toLocaleString() // Show CORE balance when converting CORE→stCORE
+          : userBalances.stcore.toLocaleString(), // Show stCORE balance when converting stCORE→CORE
       apy: "12.5%",
-      icon: "⚡",
+      icon: <CoreIcon size="sm" />,
       stakedSymbol: "stCORE",
       stakedName: "Staked CORE",
     },
@@ -139,7 +147,7 @@ const DepositModal = ({
                 {tokens.map((token) => (
                   <SelectItem key={token.symbol} value={token.symbol}>
                     <div className="flex items-center space-x-3 w-full">
-                      <span className="text-lg">{token.icon}</span>
+                      {token.icon}
                       <div className="flex-1">
                         <div className="flex justify-between items-center">
                           <span className="font-medium">
@@ -169,7 +177,9 @@ const DepositModal = ({
             <div className="relative">
               <Input
                 id="amount"
-                type="number"
+                type="float"
+                min={0}
+                max={selectedTokenData?.balance}
                 placeholder="0.00"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -275,7 +285,40 @@ const DepositModal = ({
               const amountNum = parseFloat(amount);
 
               if (tab === "stake") {
-                // Check if user has enough balance
+                // Check if user has enough balance to convert
+                const availableBalance =
+                  selectedToken === "BTC"
+                    ? userBalances.btc
+                    : userBalances.core;
+                if (amountNum > availableBalance) {
+                  toast({
+                    title: "Insufficient Balance",
+                    description: `You don't have enough ${selectedToken} to convert`,
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                // Convert BTC→wBTC or CORE→stCORE
+                setUserBalances((prev) => ({
+                  ...prev,
+                  ...(selectedToken === "BTC"
+                    ? {
+                        btc: prev.btc - amountNum,
+                        wbtc: prev.wbtc + amountNum,
+                      }
+                    : {
+                        core: prev.core - amountNum,
+                        stcore: prev.stcore + amountNum,
+                      }),
+                }));
+
+                toast({
+                  title: "Conversion Successful",
+                  description: `Converted ${amount} ${selectedToken} to ${selectedTokenData?.stakedSymbol}`,
+                });
+              } else {
+                // For redeem, check if user has enough wrapped tokens to convert back
                 const availableBalance =
                   selectedToken === "BTC"
                     ? userBalances.wbtc
@@ -283,36 +326,29 @@ const DepositModal = ({
                 if (amountNum > availableBalance) {
                   toast({
                     title: "Insufficient Balance",
-                    description: `You don't have enough ${selectedToken} to deposit`,
+                    description: `You don't have enough ${selectedTokenData?.stakedSymbol} to convert to ${selectedToken}`,
                     variant: "destructive",
                   });
                   return;
                 }
 
-                // Deduct from user balance for deposit
+                // Convert wBTC→BTC or stCORE→CORE
                 setUserBalances((prev) => ({
                   ...prev,
-                  [selectedToken === "BTC" ? "wbtc" : "stcore"]:
-                    prev[selectedToken === "BTC" ? "wbtc" : "stcore"] -
-                    amountNum,
+                  ...(selectedToken === "BTC"
+                    ? {
+                        wbtc: prev.wbtc - amountNum,
+                        btc: prev.btc + amountNum,
+                      }
+                    : {
+                        stcore: prev.stcore - amountNum,
+                        core: prev.core + amountNum,
+                      }),
                 }));
 
                 toast({
-                  title: "Deposit Initiated",
-                  description: `Depositing ${amount} ${selectedToken} to receive ${selectedTokenData?.stakedSymbol}`,
-                });
-              } else {
-                // For withdraw, add to user balance
-                setUserBalances((prev) => ({
-                  ...prev,
-                  [selectedToken === "BTC" ? "wbtc" : "stcore"]:
-                    prev[selectedToken === "BTC" ? "wbtc" : "stcore"] +
-                    amountNum,
-                }));
-
-                toast({
-                  title: "Redeem Initiated",
-                  description: `Redeeming ${amount} ${selectedTokenData?.stakedSymbol} to receive ${selectedToken}`,
+                  title: "Conversion Successful",
+                  description: `Converted ${amount} ${selectedTokenData?.stakedSymbol} to ${selectedToken}`,
                 });
               }
               setIsOpen(false);

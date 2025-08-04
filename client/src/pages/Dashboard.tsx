@@ -14,6 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import DepositModal from "@/components/DepositModal";
 import EarningsOverview from "@/components/EarningsCard";
+import { BitcoinIcon } from "@/components/icons/BitcoinIcon";
+import { CoreIcon } from "@/components/icons/CoreIcon";
 import VaultCreationCard from "@/components/VaultCreationCard";
 import UserPositions from "@/components/UserPositions";
 import { useVault } from "@/contexts/VaultContext";
@@ -66,7 +68,7 @@ const Dashboard = () => {
           <h1 className="text-4xl font-bold mb-2">
             Welcome to{" "}
             <span className="bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-              Famz
+              Famz Yield
             </span>
           </h1>
           <p className="text-lg text-muted-foreground mb-6">
@@ -196,7 +198,7 @@ const Dashboard = () => {
                     <div className="grid grid-cols-2 gap-2">
                       <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
                         <div className="flex items-center space-x-2">
-                          <span className="text-sm">₿</span>
+                          <BitcoinIcon size="sm" />
                           <span className="text-sm">wBTC</span>
                         </div>
                         <span className="text-sm font-medium">
@@ -205,7 +207,7 @@ const Dashboard = () => {
                       </div>
                       <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
                         <div className="flex items-center space-x-2">
-                          <span className="text-sm">⚡</span>
+                          <CoreIcon size="sm" />
                           <span className="text-sm">stCORE</span>
                         </div>
                         <span className="text-sm font-medium">
@@ -223,7 +225,7 @@ const Dashboard = () => {
                     <div className="grid grid-cols-2 gap-2">
                       <div className="flex items-center justify-between p-2 bg-gold/10 rounded">
                         <div className="flex items-center space-x-2">
-                          <span className="text-sm">₿</span>
+                          <BitcoinIcon size="sm" />
                           <span className="text-sm">wBTC</span>
                         </div>
                         <span className="text-sm font-medium text-gold">
@@ -232,7 +234,7 @@ const Dashboard = () => {
                       </div>
                       <div className="flex items-center justify-between p-2 bg-gold/10 rounded">
                         <div className="flex items-center space-x-2">
-                          <span className="text-sm">⚡</span>
+                          <CoreIcon size="sm" />
                           <span className="text-sm">stCORE</span>
                         </div>
                         <span className="text-sm font-medium text-gold">
@@ -249,7 +251,7 @@ const Dashboard = () => {
                       </h5>
                       <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                         <div className="flex items-center space-x-2">
-                          <span className="text-lg">₿</span>
+                          <BitcoinIcon size="lg" />
                           <span className="font-medium">wBTC Total</span>
                         </div>
                         <div className="text-right">
@@ -263,7 +265,7 @@ const Dashboard = () => {
                       </div>
                       <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                         <div className="flex items-center space-x-2">
-                          <span className="text-lg">⚡</span>
+                          <CoreIcon size="lg" />
                           <span className="font-medium">stCORE Total</span>
                         </div>
                         <div className="text-right">

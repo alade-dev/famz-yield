@@ -30,8 +30,8 @@ const Navigation = () => {
                 </span>
               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-                Famz
-              </span> 
+                Famz Yield
+              </span>
             </Link>
           </div>
 

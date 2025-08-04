@@ -14,7 +14,7 @@ const VaultCreationCard = () => {
           <div className="p-2 bg-gradient-primary rounded-lg">
             <Vault className="w-5 h-5 text-primary-foreground" />
           </div>
-          <span>Create New Vault</span>
+          <span>Create Your Own Vault</span>
           <Sparkles className="w-4 h-4 text-gold ml-auto" />
         </CardTitle>
       </CardHeader>

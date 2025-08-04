@@ -14,6 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { useAccount } from "wagmi";
+import { BitcoinIcon } from "@/components/icons/BitcoinIcon";
+import { CoreIcon } from "@/components/icons/CoreIcon";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
@@ -85,7 +87,7 @@ const Landing = () => {
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-3xl lg:text-5xl font-bold mb-6">
-              Why Choose <span className="text-primary">Famz</span>?
+              Why Choose <span className="text-primary">Famz Yield</span>?
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Built for Bitcoin holders who want to maximize their yields
@@ -150,7 +152,8 @@ const Landing = () => {
               How It Works
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Start earning yields on your Bitcoin in just 3 simple steps
+              Start earning yields on your Bitcoin and Core ecosystem assets in
+              just 3 simple steps
             </p>
           </div>
 
@@ -161,7 +164,7 @@ const Landing = () => {
               </div>
               <h3 className="text-xl font-semibold mb-4">Connect & Deposit</h3>
               <p className="text-muted-foreground">
-                Connect your wallet and deposit wBTC or stCORE to get started
+                Connect your wallet and deposit wBTC and stCORE to get started
               </p>
             </div>
 
@@ -205,7 +208,9 @@ const Landing = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             <Card className="bg-gradient-vault border-vault-border">
               <CardHeader className="text-center">
-                <div className="text-4xl mb-4">₿</div>
+                <div className="mb-4 flex justify-center">
+                  <BitcoinIcon size="4xl" />
+                </div>
                 <CardTitle>Wrapped Bitcoin (wBTC)</CardTitle>
               </CardHeader>
               <CardContent className="text-center">
@@ -218,7 +223,9 @@ const Landing = () => {
 
             <Card className="bg-gradient-vault border-vault-border">
               <CardHeader className="text-center">
-                <div className="text-4xl mb-4">⚡</div>
+                <div className="mb-4 flex justify-center items-center space-x-2">
+                  <CoreIcon size="4xl" />
+                </div>
                 <CardTitle>Staked CORE (stCORE)</CardTitle>
               </CardHeader>
               <CardContent className="text-center">
@@ -331,7 +338,7 @@ const Landing = () => {
             </h2>
             <p className="text-xl text-muted-foreground mb-8">
               Join thousands of Bitcoin holders maximizing their yields with
-              Famz
+              Famz Yield
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" className="group" onClick={handleStartEarning}>

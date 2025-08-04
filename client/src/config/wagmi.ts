@@ -11,9 +11,9 @@ export const config = createConfig({
     walletConnect({
       projectId: projectId || "demo-project-id",
       metadata: {
-        name: "Famz",
+        name: "Famz Yield",
         description: "DeFi Famz for wBTC and stCore",
-        url: "https://yieldhub.app",
+        url: "https://famz-defi.vercel.app",
         icons: ["https://avatars.githubusercontent.com/u/37784886"],
       },
     }),

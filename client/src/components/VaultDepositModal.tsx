@@ -13,6 +13,8 @@ import { Card } from "@/components/ui/card";
 import { ArrowRight, ArrowDown, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useVault } from "@/contexts/VaultContext";
+import { BitcoinIcon } from "@/components/icons/BitcoinIcon";
+import { CoreIcon } from "@/components/icons/CoreIcon";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
 
 interface VaultDepositModalProps {
@@ -32,7 +34,7 @@ const VaultDepositModal = ({
   const [stcoreAmount, setStcoreAmount] = useState<string>("");
   const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
-  const { addPosition, userBalances, setUserBalances } = useVault();
+  const { addPosition, userBalances, setUserBalances, positions } = useVault();
   const { requireWalletConnection } = useWalletConnection();
 
   // Calculate expected lstBTC based on inputs
@@ -101,6 +103,7 @@ const VaultDepositModal = ({
 
     // Deduct amounts from user balances
     setUserBalances((prev) => ({
+      ...prev,
       wbtc: prev.wbtc - wbtcNum,
       stcore: prev.stcore - stcoreNum,
     }));
@@ -150,15 +153,22 @@ const VaultDepositModal = ({
               <div className="relative">
                 <Input
                   id="wbtc"
-                  type="number"
+                  type="text"
                   placeholder="0.1"
                   value={wbtcAmount}
-                  onChange={(e) => setWbtcAmount(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (
+                      value === "" ||
+                      (/^\d*\.?\d*$/.test(value) && parseFloat(value) >= 0)
+                    ) {
+                      setWbtcAmount(value);
+                    }
+                  }}
                   className="bg-muted border-vault-border pr-16"
-                  step="0.00001"
                 />
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground flex items-center space-x-1">
-                  <span>₿</span>
+                  <BitcoinIcon size="sm" />
                   <span>wBTC</span>
                 </div>
               </div>
@@ -172,15 +182,22 @@ const VaultDepositModal = ({
               <div className="relative">
                 <Input
                   id="stcore"
-                  type="number"
+                  type="text"
                   placeholder="1000"
                   value={stcoreAmount}
-                  onChange={(e) => setStcoreAmount(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (
+                      value === "" ||
+                      (/^\d*\.?\d*$/.test(value) && parseFloat(value) >= 0)
+                    ) {
+                      setStcoreAmount(value);
+                    }
+                  }}
                   className="bg-muted border-vault-border pr-16"
-                  step="1"
                 />
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground flex items-center space-x-1">
-                  <span>⚡</span>
+                  <CoreIcon size="sm" />
                   <span>stCORE</span>
                 </div>
               </div>

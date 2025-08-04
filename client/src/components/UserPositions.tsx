@@ -64,7 +64,12 @@ const UserPositions = ({ limit }: UserPositionsProps) => {
     );
   }
 
-  if (positions.length === 0) {
+  // Filter out positions with zero deposits first
+  const validPositions = positions.filter(
+    (position) => position.wbtcDeposited > 0 || position.stcoreDeposited > 0
+  );
+
+  if (validPositions.length === 0) {
     return (
       <Card className="bg-gradient-vault border-vault-border">
         <CardContent className="p-8 text-center">
@@ -79,7 +84,9 @@ const UserPositions = ({ limit }: UserPositionsProps) => {
   }
 
   // Apply limit if specified
-  const displayedPositions = limit ? positions.slice(0, limit) : positions;
+  const displayedPositions = limit
+    ? validPositions.slice(0, limit)
+    : validPositions;
 
   return (
     <div className="space-y-4">

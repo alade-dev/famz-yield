@@ -48,13 +48,20 @@ interface VaultContextType {
       | "lastEarningsUpdate"
     >
   ) => void;
+  updatePosition: (id: string, updates: Partial<VaultPosition>) => void;
+  removePosition: (id: string) => void;
   updateEarnings: () => void;
   getTotalDeposited: () => number;
   getTotalEarnings: () => number;
   getTotalValue: () => number;
-  userBalances: { wbtc: number; stcore: number };
+  userBalances: { btc: number; core: number; wbtc: number; stcore: number };
   setUserBalances: React.Dispatch<
-    React.SetStateAction<{ wbtc: number; stcore: number }>
+    React.SetStateAction<{
+      btc: number;
+      core: number;
+      wbtc: number;
+      stcore: number;
+    }>
   >;
   closeVault: (id: string) => void;
   earningsHistory: EarningsHistory[];
@@ -75,9 +82,11 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const [positions, setPositions] = useState<VaultPosition[]>([]);
   const [userBalances, setUserBalances] = useState<{
+    btc: number;
+    core: number;
     wbtc: number;
     stcore: number;
-  }>({ wbtc: 0, stcore: 0 });
+  }>({ btc: 1.0, core: 10000, wbtc: 0, stcore: 0 });
   const [earningsHistory, setEarningsHistory] = useState<EarningsHistory[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
@@ -111,7 +120,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     lstbtcValue: 0,
   };
 
-  const expectedUserBalances = { wbtc: 0, stcore: 0 };
+  const expectedUserBalances = { btc: 0, core: 0, wbtc: 0, stcore: 0 };
 
   // Memoized updateEarnings function to prevent infinite loops
   const updateEarnings = useCallback(() => {
@@ -225,12 +234,22 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         [expectedVaultPosition]
       );
 
-      // Load balances with validation
+      // Load balances with validation and migration
       const loadedBalances = getSecureItem(
         "userBalances",
-        { wbtc: 1.0, stcore: 10000 }, // Default balances for new users
+        { btc: 1.0, core: 10000, wbtc: 0, stcore: 0 }, // Default balances for new users
         expectedUserBalances
       );
+
+      // Migrate old balance format to new format if needed
+      const migratedBalances = {
+        btc: typeof loadedBalances.btc === "number" ? loadedBalances.btc : 1.0,
+        core:
+          typeof loadedBalances.core === "number" ? loadedBalances.core : 10000,
+        wbtc: typeof loadedBalances.wbtc === "number" ? loadedBalances.wbtc : 0,
+        stcore:
+          typeof loadedBalances.stcore === "number" ? loadedBalances.stcore : 0,
+      };
 
       // Load earnings history with validation
       const loadedEarningsHistory = getSecureItem<EarningsHistory[]>(
@@ -240,8 +259,20 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       );
 
       setPositions(loadedPositions);
-      setUserBalances(loadedBalances);
+      setUserBalances(migratedBalances);
       setEarningsHistory(loadedEarningsHistory);
+
+      // Save migrated balances back to storage if migration occurred
+      if (
+        typeof loadedBalances.btc !== "number" ||
+        typeof loadedBalances.core !== "number"
+      ) {
+        setSecureItem("userBalances", migratedBalances);
+        console.log("Migrated user balances to new format", {
+          old: loadedBalances,
+          new: migratedBalances,
+        });
+      }
       setIsDataLoaded(true);
 
       // Show migration success message if data was migrated
@@ -251,7 +282,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     } else {
       // Clear data when wallet disconnects
       setPositions([]);
-      setUserBalances({ wbtc: 0, stcore: 0 });
+      setUserBalances({ btc: 0, core: 0, wbtc: 0, stcore: 0 });
       setEarningsHistory([]);
       setIsDataLoaded(false);
     }
@@ -347,6 +378,82 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     [isConnected, isDataLoaded]
   );
 
+  const updatePosition = useCallback(
+    (id: string, updates: Partial<VaultPosition>) => {
+      if (!isConnected || !isDataLoaded) {
+        console.warn(
+          "Cannot update position: wallet not connected or data not loaded"
+        );
+        return;
+      }
+
+      setPositions((prev) => {
+        const updated = prev.map((position) => {
+          if (position.id === id) {
+            const updatedPosition = { ...position, ...updates };
+
+            // Recalculate initialValue if deposits changed
+            if (
+              updates.wbtcDeposited !== undefined ||
+              updates.stcoreDeposited !== undefined
+            ) {
+              updatedPosition.initialValue =
+                updatedPosition.wbtcDeposited * 43000 +
+                updatedPosition.stcoreDeposited;
+            }
+
+            return updatedPosition;
+          }
+          return position;
+        });
+
+        // Save updated positions to secure storage
+        setSecureItem("vaultPositions", updated);
+
+        return updated;
+      });
+    },
+    [isConnected, isDataLoaded, setSecureItem]
+  );
+
+  const removePosition = useCallback(
+    (id: string) => {
+      if (!isConnected || !isDataLoaded) {
+        console.warn(
+          "Cannot remove position: wallet not connected or data not loaded"
+        );
+        return;
+      }
+
+      setPositions((prev) => {
+        const position = prev.find((p) => p.id === id);
+        if (!position) {
+          console.warn(`Position with id ${id} not found`);
+          return prev;
+        }
+
+        // Add final earnings to history before removal
+        const earningRecord: EarningsHistory = {
+          id: Date.now().toString(),
+          vaultId: position.id,
+          date: new Date().toISOString(),
+          wbtcEarned: position.wbtcEarnings,
+          stcoreEarned: position.stcoreEarnings,
+          lstbtcValue: position.lstbtcGenerated,
+        };
+        setEarningsHistory((prevHistory) => [...prevHistory, earningRecord]);
+
+        const filtered = prev.filter((p) => p.id !== id);
+
+        // Save updated positions to secure storage
+        setSecureItem("vaultPositions", filtered);
+
+        return filtered;
+      });
+    },
+    [isConnected, isDataLoaded, setSecureItem]
+  );
+
   const getTotalWbtcEarnings = useCallback(() => {
     if (!isConnected || !isDataLoaded) return 0;
     return positions.reduce(
@@ -410,6 +517,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
 
         // Credit user with original deposits plus earnings from lstBTC
         setUserBalances((bal) => ({
+          ...bal,
           wbtc: bal.wbtc + pos.wbtcDeposited + pos.wbtcEarnings,
           stcore: bal.stcore + pos.stcoreDeposited + pos.stcoreEarnings,
         }));
@@ -425,6 +533,8 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       value={{
         positions,
         addPosition,
+        updatePosition,
+        removePosition,
         updateEarnings,
         getTotalDeposited,
         getTotalEarnings,
