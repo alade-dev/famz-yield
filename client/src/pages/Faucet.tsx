@@ -171,7 +171,7 @@ const Faucet = () => (
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-border/50">
-            <Button asChild size="lg" className="flex-1 group">
+            <Button asChild size="lg" className="flex-1 group lg:p-0 py-2">
               <Link to="/dashboard">
                 <TrendingUp className="w-5 h-5 mr-2" />
                 Go to Dashboard
@@ -182,10 +182,10 @@ const Faucet = () => (
               asChild
               variant="outline"
               size="lg"
-              className="flex-1 group"
+              className="flex-1 group lg:p-0 py-2"
             >
               <Link to="/vaults">
-                <Shield className="w-5 h-5 mr-2" />
+                <Shield className="w-5 h-5  mr-2" />
                 Explore Vaults
                 <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
               </Link>
