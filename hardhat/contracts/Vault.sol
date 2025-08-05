@@ -325,6 +325,20 @@ contract Vault is Ownable, ReentrancyGuard {
         }
     }
 
+    //CORE -> stCORE (the value would keep increasing as yield is generated)
+    ///2CORE -> 1.8stCORE
+    //1.8stCORE -> 1.9stCORE(how?)1.801 //this is where the vault yield is generated
+    //0.67wBTC -> 0.7wBTC(how?)0.671 //this is where the vault yield is generated
+    //1.9stCORE -> 2.2CORE
+    //0.8lstBTC -> 0.9lstBTC(yield generated)
+    //Earn contract: 1 stCORE = 1.4167 CORE
+
+    //minting lstBTC to the user, 1 lstBTC = 1 BTC
+    // 1 lstBTC = 1 BTC(1.4067 (CORE + wBTC)) when the user deposited the tokens
+    // 1 lstBTC = 1.4167(CORE + wBTC)
+    // we created our own wBTC token, we used the stCORE present in CORE testnet
+    // We need yielding mechanism to earn yield within the vault to allow more lstBTC to be minted to user.
+
     /**
      * @notice Sets the yield contract address
      * @param _earn Address of the new yield contract

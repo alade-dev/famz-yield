@@ -53,6 +53,11 @@ contract VaultNew is Ownable, ReentrancyGuard {
     /// @notice Total protocol fees collected (in ETH/CORE)
     uint256 public totalFeesCollected;
 
+    /// @notice Mapping of LST tokens that are whitelisted for deposit
+    mapping(address => bool) public isLSTWhitelisted;
+
+    address public constant CORE_NATIVE = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
     // --- EVENTS ---
 
     /**
@@ -124,25 +129,21 @@ contract VaultNew is Ownable, ReentrancyGuard {
     /**
      * @notice Constructs the Vault with required dependencies
      * @param _wBTC Address of the wBTC token
-     * @param _stCORE Address of the stCORE token
      * @param _custodian Address of the custodian contract
      * @param _lstBTC Address of the lstBTC token contract
      * @param initialOwner The initial owner of the contract
      */
     constructor(
         address _wBTC,
-        address _stCORE,
         address _custodian,
         address _lstBTC,
         address initialOwner
     ) Ownable(initialOwner) {
         require(_wBTC != address(0), "Invalid wBTC address");
-        require(_stCORE != address(0), "Invalid stCORE address");
         require(_custodian != address(0), "Invalid custodian address");
         require(_lstBTC != address(0), "Invalid lstBTC address");
 
         wBTC = _wBTC;
-        stCORE = _stCORE;
         custodian = Custodian(_custodian);
         lstBTC = LstBTCNew(_lstBTC);
 
@@ -157,6 +158,13 @@ contract VaultNew is Ownable, ReentrancyGuard {
         _;
     }
 
+    /// @notice Modifier to ensure only whitelisted LST tokens can be deposited
+    /// @param token The LST token address to check
+    modifier onlyWhitelistedLST(address token) {
+        require(isLSTWhitelisted[token], "LST not whitelisted");
+        _;
+    }
+
     /**
      * @notice Deposit wBTC and stCORE to mint lstBTC
      * @dev Transfers tokens to vault, then vault transfers to custodian for processing
@@ -165,11 +173,14 @@ contract VaultNew is Ownable, ReentrancyGuard {
      */
     function deposit(
         uint256 amountWBTC,
-        uint256 amountStCORE
-    ) external nonReentrant {
-        require(amountWBTC > 0 || amountStCORE > 0, "Must deposit at least one asset");
-        
-        (uint256 stCOREPrice, uint256 coreBTCPrice) = custodian.getCurrentPrices();
+        uint256 amountStCORE,
+        address lstToken
+    ) external nonReentrant onlyWhitelistedLST(lstToken) {
+        require(amountWBTC > 0 && amountStCORE > 0, "Deposits must be greater than zero");
+
+        //(uint256 stCOREPrice, uint256 coreBTCPrice) = custodian.getCurrentPrices();
+        uint256 stCOREPrice = custodian.priceOracle().getPrice(lstToken);
+        uint256 coreBTCPrice = custodian.priceOracle().getPrice(CORE_NATIVE);
         uint256 stCOREInBTC = 0;
         if (amountStCORE > 0) {
             stCOREInBTC = (amountStCORE * stCOREPrice * coreBTCPrice) / (1e18 * 1e18);
@@ -184,9 +195,9 @@ contract VaultNew is Ownable, ReentrancyGuard {
             IERC20(wBTC).approve(address(custodian), amountWBTC);
         }
         if (amountStCORE > 0) {
-            IERC20(stCORE).transferFrom(msg.sender, address(this), amountStCORE);
+            IERC20(lstToken).transferFrom(msg.sender, address(this), amountStCORE);
             // Approve custodian to spend stCORE
-            IERC20(stCORE).approve(address(custodian), amountStCORE);
+            IERC20(lstToken).approve(address(custodian), amountStCORE);
         }
 
         // Call custodian to process deposit and get mint amount
@@ -202,7 +213,7 @@ contract VaultNew is Ownable, ReentrancyGuard {
      * @dev Burns lstBTC and receives assets from custodian
      * @param lstBTCAmount Amount of lstBTC to redeem
      */
-    function redeem(uint256 lstBTCAmount) external nonReentrant {
+    function redeem(uint256 lstBTCAmount, address lstToken) external nonReentrant {
         require(lstBTCAmount >= redeemMinAmount, "Below minimum redeem amount");
         require(lstBTC.balanceOf(msg.sender) >= lstBTCAmount, "Insufficient lstBTC balance");
 
@@ -217,7 +228,7 @@ contract VaultNew is Ownable, ReentrancyGuard {
             IERC20(wBTC).transfer(msg.sender, wBTCReturned);
         }
         if (stCOREReturned > 0) {
-            IERC20(stCORE).transfer(msg.sender, stCOREReturned);
+            IERC20(lstToken).transfer(msg.sender, stCOREReturned);
         }
 
         emit RedeemSuccessful(msg.sender, lstBTCAmount, wBTCReturned, stCOREReturned);
@@ -329,6 +340,15 @@ contract VaultNew is Ownable, ReentrancyGuard {
         lstBTC.setYieldDistributor(address(this), true);
     }
 
+    /**
+     * @notice Whitelists or removes an LST token for deposits
+     * @param token Address of the LST token
+     * @param status true to whitelist, false to remove
+     */
+    function whitelistLST(address token, bool status) external onlyOwner {
+        isLSTWhitelisted[token] = status;
+    }
+
     // --- View Functions ---
 
     /**
@@ -345,7 +365,8 @@ contract VaultNew is Ownable, ReentrancyGuard {
      * @return coreBTCPrice CORE to BTC price
      */
     function getCurrentPrices() external view returns (uint256 stCOREPrice, uint256 coreBTCPrice) {
-        return custodian.getCurrentPrices();
+        stCOREPrice = custodian.priceOracle().getPrice(address(custodian.stCORE()));
+        coreBTCPrice = custodian.priceOracle().getPrice(CORE_NATIVE);
     }
 
     /**

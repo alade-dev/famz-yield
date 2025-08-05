@@ -8,19 +8,8 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./VaultMath.sol";
 import "./LstBTC-New.sol";
 
-// Chainlink Aggregator interface
-interface AggregatorV3Interface {
-    function latestRoundData()
-        external
-        view
-        returns (
-            uint80 roundId,
-            int256 answer,
-            uint256 startedAt,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        );
-}
+import "./PriceOracle.sol";
+
 
 /// @title lstBTC Yield Vault Custodian Contract
 /// @notice Manages deposits of wBTC and stCORE, minting of lstBTC, and redemptions
@@ -32,9 +21,10 @@ contract Custodian is Ownable, Pausable, ReentrancyGuard {
     IERC20 public immutable stCORE;
     LstBTCNew public immutable lstBTC;
 
-    // Chainlink oracles for price feeds
-    AggregatorV3Interface public priceStCORE_COREFeed;
-    AggregatorV3Interface public priceCORE_BTCFeed;
+    PriceOracle public immutable priceOracle;
+
+    // Use this constant to represent CORE (native token)
+    address public constant CORE_NATIVE = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /// @notice Authorized vault contract that can trigger operations
     address public authorizedVault;
@@ -43,6 +33,7 @@ contract Custodian is Ownable, Pausable, ReentrancyGuard {
         uint256 r_wBTC;     // wBTC ratio (1e18-scaled)
         uint256 r_stCORE;   // stCORE ratio (1e18-scaled)
         bool hasDeposited;  // Flag to check if user has ever deposited
+        address lstToken; // Address of the lstToken (stCORE or other)
     }
     
     /// @notice Mapping from user address to their deposit ratios
@@ -54,15 +45,13 @@ contract Custodian is Ownable, Pausable, ReentrancyGuard {
     event Deposited(address indexed user, uint256 wBTCAmount, uint256 stCOREAmount, uint256 lstBTCMinted);
     event Redeemed(address indexed user, uint256 lstBTCBurned, uint256 wBTCReturned, uint256 stCOREReturned);
     event VaultAuthorized(address indexed vault);
-    event PriceFeedsUpdated(address stCOREFeed, address coreBTCFeed);
     event YieldGenerated(uint256 totalYield);
 
     constructor(
         address _wBTC,
         address _stCORE,
         address _lstBTC,
-        address _priceStCORE_COREFeed,
-        address _priceCORE_BTCFeed,
+        address _priceOracle,
         address initialOwner
     ) Ownable(initialOwner) {
         require(_wBTC != address(0), "Invalid wBTC address");
@@ -72,8 +61,7 @@ contract Custodian is Ownable, Pausable, ReentrancyGuard {
         wBTC = IERC20(_wBTC);
         stCORE = IERC20(_stCORE);
         lstBTC = LstBTCNew(_lstBTC);
-        priceStCORE_COREFeed = AggregatorV3Interface(_priceStCORE_COREFeed);
-        priceCORE_BTCFeed = AggregatorV3Interface(_priceCORE_BTCFeed);
+        priceOracle = PriceOracle(_priceOracle);
     }
 
     /// @notice Modifier to check if caller is authorized vault
@@ -90,18 +78,6 @@ contract Custodian is Ownable, Pausable, ReentrancyGuard {
         require(vault != address(0), "Zero address");
         authorizedVault = vault;
         emit VaultAuthorized(vault);
-    }
-
-    /**
-     * @notice Sets or updates price feeds
-     * @param _stCOREFeed Address of stCORE/CORE price feed
-     * @param _coreBTCFeed Address of CORE/BTC price feed
-     */
-    function setPriceFeeds(address _stCOREFeed, address _coreBTCFeed) external onlyOwner {
-        require(_stCOREFeed != address(0) && _coreBTCFeed != address(0), "Zero address");
-        priceStCORE_COREFeed = AggregatorV3Interface(_stCOREFeed);
-        priceCORE_BTCFeed = AggregatorV3Interface(_coreBTCFeed);
-        emit PriceFeedsUpdated(_stCOREFeed, _coreBTCFeed);
     }
 
     /**
@@ -125,24 +101,28 @@ contract Custodian is Ownable, Pausable, ReentrancyGuard {
             stCORE.transferFrom(authorizedVault, address(this), amountOfStCORE);
         }
 
-        // Fetch prices (1e18-scaled)
-        uint256 p_stCORE_CORE = uint256(getLatestPrice(priceStCORE_COREFeed));
-        uint256 p_CORE_BTC = uint256(getLatestPrice(priceCORE_BTCFeed));
+        // Fetch current prices from oracle
+        // uint256 p_stCORE_CORE = uint256(priceOracle.getPrice(stCORE));
+        // uint256 p_CORE_BTC = uint256(priceOracle.getPrice(wBTC));
+        // require(p_stCORE_CORE > 0 && p_CORE_BTC > 0, "Invalid prices from oracle");
+        uint256 price_stCORE_CORE = priceOracle.getPrice(address(stCORE));
+        uint256 price_CORE_BTC = priceOracle.getPrice(CORE_NATIVE);
+        require(price_stCORE_CORE > 0 && price_CORE_BTC > 0, "Invalid prices from oracle");
 
         // Calculate mint amount using VaultMath
         lstBTCMinted = VaultMath.calculateLstBTCToMint(
             amountOfwBTC,
             amountOfStCORE,
-            p_stCORE_CORE,
-            p_CORE_BTC
+            price_stCORE_CORE,
+            price_CORE_BTC
         );
 
         // Calculate and store ratios for redemption
         (uint256 r_w, uint256 r_s) = VaultMath.calculateDepositRatios(
             amountOfwBTC,
             amountOfStCORE,
-            p_stCORE_CORE,
-            p_CORE_BTC
+            price_stCORE_CORE,
+            price_CORE_BTC
         );
 
         // Update user ratios (weighted average if user has previous deposits)
@@ -178,16 +158,17 @@ contract Custodian is Ownable, Pausable, ReentrancyGuard {
         require(ratio.hasDeposited, "No deposit ratio recorded");
 
         // Fetch current prices
-        uint256 p_stCORE_CORE = uint256(getLatestPrice(priceStCORE_COREFeed));
-        uint256 p_CORE_BTC = uint256(getLatestPrice(priceCORE_BTCFeed));
+        uint256 price_stCORE_CORE = priceOracle.getPrice(address(stCORE));
+        uint256 price_CORE_BTC = priceOracle.getPrice(CORE_NATIVE);
+
 
         // Calculate returns using VaultMath
         (wBTCReturned, stCOREReturned) = VaultMath.calculateRedemption(
             amountOfLstBTC,
             ratio.r_wBTC,
             ratio.r_stCORE,
-            p_stCORE_CORE,
-            p_CORE_BTC
+            price_stCORE_CORE,
+            price_CORE_BTC
         );
 
         // Ensure sufficient balance in custodian
@@ -224,16 +205,6 @@ contract Custodian is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
-     * @notice Gets current prices from oracles
-     * @return stCOREPrice stCORE to CORE price (1e18-scaled)
-     * @return coreBTCPrice CORE to BTC price (1e18-scaled)
-     */
-    function getCurrentPrices() external view returns (uint256 stCOREPrice, uint256 coreBTCPrice) {
-        stCOREPrice = uint256(getLatestPrice(priceStCORE_COREFeed));
-        coreBTCPrice = uint256(getLatestPrice(priceCORE_BTCFeed));
-    }
-
-    /**
      * @notice Gets total BTC value held in custodian
      * @return Total BTC value (1e18-scaled)
      */
@@ -243,11 +214,13 @@ contract Custodian is Ownable, Pausable, ReentrancyGuard {
         
         if (stCOREBalance == 0) return wBTCBalance;
         
-        uint256 p_stCORE_CORE = uint256(getLatestPrice(priceStCORE_COREFeed));
-        uint256 p_CORE_BTC = uint256(getLatestPrice(priceCORE_BTCFeed));
-        
-        uint256 stCOREInBTC = VaultMath.btcValueOfStCORE(stCOREBalance, p_stCORE_CORE, p_CORE_BTC);
-        
+        uint256 price_stCORE_CORE = priceOracle.getPrice(address(stCORE));
+        uint256 price_CORE_BTC = priceOracle.getPrice(CORE_NATIVE);
+
+        require(price_stCORE_CORE > 0 && price_CORE_BTC > 0, "Invalid prices from oracle");
+
+        uint256 stCOREInBTC = VaultMath.btcValueOfStCORE(stCOREBalance, price_stCORE_CORE, price_CORE_BTC);
+
         return wBTCBalance + stCOREInBTC;
     }
 
@@ -283,16 +256,5 @@ contract Custodian is Ownable, Pausable, ReentrancyGuard {
      */
     function emergencyWithdraw(address token, uint256 amount) external onlyOwner {
         IERC20(token).transfer(owner(), amount);
-    }
-
-    /**
-     * @dev Returns latest price from Chainlink feed
-     * @param feed Chainlink price feed
-     * @return Latest price
-     */
-    function getLatestPrice(AggregatorV3Interface feed) internal view returns (int256) {
-        (, int256 price,,,) = feed.latestRoundData();
-        require(price > 0, "Invalid price from oracle");
-        return price;
     }
 }
