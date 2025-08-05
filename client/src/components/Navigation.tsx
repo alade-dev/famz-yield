@@ -9,10 +9,11 @@ const Navigation = () => {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const navItems = [
-    { path: "/", label: "Home", icon: LayoutDashboard },
-    { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { path: "/vaults", label: "Vaults", icon: Vault },
+  const navTabs = [
+    { label: "Faucet", path: "/faucet", enabled: true },
+    { label: "Portfolio", path: "/dashboard#portfolio", enabled: true },
+    { label: "Vault", path: "/vaults", enabled: true },
+    { label: "Staking", path: "#", enabled: false },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -35,37 +36,65 @@ const Navigation = () => {
             </Link>
           </div>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-4">
-            <div className="flex items-center space-x-1">
-              {/* {navItems.map((item) => (
-                <Link key={item.path} to={item.path}>
-                  <Button
-                    variant={isActive(item.path) ? "default" : "ghost"}
-                    className="flex items-center space-x-2"
+          {/* Centered Navigation Tabs (Desktop) */}
+          <div className="hidden md:flex items-center justify-center flex-1">
+            <div className="flex items-center space-x-8">
+              {navTabs.map((tab) =>
+                tab.enabled ? (
+                  <Link key={tab.label} to={tab.path}>
+                    <span
+                      className={`relative px-3 py-2 text-sm font-medium transition-colors duration-200 hover:text-primary ${
+                        location.pathname === tab.path.split("#")[0]
+                          ? "text-primary"
+                          : "text-muted-foreground"
+                      } group`}
+                    >
+                      {tab.label}
+                      {/* Underline effect */}
+                      <span
+                        className={`absolute bottom-0 left-0 w-full h-0.5 bg-primary transition-transform duration-200 ${
+                          location.pathname === tab.path.split("#")[0]
+                            ? "scale-x-100"
+                            : "scale-x-0 group-hover:scale-x-100"
+                        }`}
+                      />
+                    </span>
+                  </Link>
+                ) : (
+                  <div
+                    key={tab.label}
+                    className="relative flex items-center space-x-2"
                   >
-                    <item.icon className="w-4 h-4" />
-                    <span>{item.label}</span>
-                  </Button>
-                </Link>
-              ))} */}
+                    <span className="px-3 py-2 text-sm font-medium text-muted-foreground/60">
+                      {tab.label}
+                    </span>
+                    <p className="px-2 py-1 text-xs font-semibold bg-amber-400/20 text-white rounded-full shadow-sm border border-amber-300/30">
+                      Coming Soon
+                    </p>
+                  </div>
+                )
+              )}
             </div>
-            <ThemeToggle />
-            <WalletConnect />
           </div>
 
-          {/* Mobile menu button */}
-          <div className="md:hidden">
-            <Button
-              variant="ghost"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            >
-              {isMobileMenuOpen ? (
-                <X className="w-5 h-5" />
-              ) : (
-                <Menu className="w-5 h-5" />
-              )}
-            </Button>
+          {/* Right side controls & Mobile menu */}
+          <div className="flex items-center">
+            <div className="hidden md:flex items-center space-x-4">
+              <ThemeToggle />
+              <WalletConnect />
+            </div>
+            <div className="md:hidden">
+              <Button
+                variant="ghost"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              >
+                {isMobileMenuOpen ? (
+                  <X className="w-5 h-5" />
+                ) : (
+                  <Menu className="w-5 h-5" />
+                )}
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -73,21 +102,38 @@ const Navigation = () => {
         {isMobileMenuOpen && (
           <div className="md:hidden border-t border-vault-border mt-2 pt-2 pb-4">
             <div className="flex flex-col space-y-2">
-              {/* {navItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  <Button
-                    variant={isActive(item.path) ? "default" : "ghost"}
-                    className="w-full justify-start space-x-2"
+              {navTabs.map((tab) =>
+                tab.enabled ? (
+                  <Link
+                    key={tab.label}
+                    to={tab.path}
+                    onClick={() => setIsMobileMenuOpen(false)}
                   >
-                    <item.icon className="w-4 h-4" />
-                    <span>{item.label}</span>
-                  </Button>
-                </Link>
-              ))} */}
+                    <Button
+                      variant={
+                        location.pathname === tab.path.split("#")[0]
+                          ? "default"
+                          : "ghost"
+                      }
+                      className="w-full justify-start space-x-2"
+                    >
+                      <span>{tab.label}</span>
+                    </Button>
+                  </Link>
+                ) : (
+                  <div
+                    key={tab.label}
+                    className="flex items-center justify-between p-3 rounded-lg"
+                  >
+                    <span className="text-sm font-medium text-muted-foreground/60">
+                      {tab.label}
+                    </span>
+                    <div className="px-2 py-1 text-xs font-semibold bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-full shadow-sm">
+                      Coming Soon
+                    </div>
+                  </div>
+                )
+              )}
               <div className="pt-2 flex flex-col space-y-2">
                 <div className="flex items-center justify-between px-2">
                   <span className="text-sm text-muted-foreground">Theme</span>

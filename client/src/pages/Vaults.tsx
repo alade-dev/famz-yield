@@ -900,7 +900,7 @@ const Vaults = () => {
                         {Math.floor((Date.now() - lastPriceUpdate) / 1000)}s ago
                         {priceLoading && " • Updating..."}
                       </span>
-                    </div>
+                  </div>
                   )} */}
                 </div>
               </div>

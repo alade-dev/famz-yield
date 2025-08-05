@@ -8,6 +8,7 @@ import {
   Lock,
   Users,
   DollarSign,
+  PlusIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,51 +31,121 @@ const Landing = () => {
     navigate("/vaults");
   };
 
+  const handleDocumentation = (e: React.MouseEvent) => {
+    window.open(
+      "https://docs.coredao.org/docs/stake-and-delegate/overview",
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-vault border-b border-vault-border">
-        <div className="absolute inset-0 bg-gradient-primary opacity-5"></div>
-        <div className="relative container mx-auto px-4 py-20 lg:py-32">
-          <div className="max-w-4xl mx-auto text-center">
-            <Badge variant="secondary" className="mb-6">
-              🚀 Built on Core Testnet
-            </Badge>
-            <h1 className="text-5xl lg:text-7xl font-bold mb-6">
-              Maximize Your{" "}
-              <span className="bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-                Bitcoin Yields
-              </span>
-            </h1>
-            <p className="text-xl lg:text-2xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-              Convert your wBTC and stCORE to lstBTC through trusted custodians.
-              Earn competitive yields while maintaining full transparency and
-              security.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" className="group" onClick={handleStartEarning}>
-                Start Earning Now
-                <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-              </Button>
-              <Button variant="outline" size="lg">
-                View Documentation
-              </Button>
+        {/* Blurred background gradients */}
+        <div aria-hidden="true" className="absolute inset-0 z-0">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-20 -translate-y-1/2 translate-x-1/2"></div>
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-gold/10 rounded-full blur-3xl opacity-20 translate-y-1/2 -translate-x-1/2"></div>
+        </div>
+
+        <div className="relative z-10 container mx-auto px-4 py-20 lg:py-24">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Left side text content */}
+            <div className="text-center lg:text-left">
+              <Badge variant="secondary" className="mb-6 animate-fade-in-up">
+                🚀 Built on Core Testnet
+              </Badge>
+              <h1
+                className="text-5xl lg:text-7xl font-bold mb-6 animate-fade-in-up"
+                style={{ animationDelay: "0.2s" }}
+              >
+                Maximize Your{" "}
+                <span className="bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
+                  Bitcoin Yields
+                </span>
+              </h1>
+              <p
+                className="text-lg lg:text-xl text-muted-foreground mb-8 max-w-xl mx-auto lg:mx-0 animate-fade-in-up"
+                style={{ animationDelay: "0.4s" }}
+              >
+                Convert your wBTC and stCORE to lstBTC through trusted
+                custodians. Earn competitive yields while maintaining full
+                transparency and security.
+              </p>
+              <div
+                className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start animate-fade-in-up"
+                style={{ animationDelay: "0.6s" }}
+              >
+                <Button
+                  size="lg"
+                  className="group"
+                  onClick={handleStartEarning}
+                >
+                  Start Earning Now
+                  <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={handleDocumentation}
+                >
+                  View Documentation
+                </Button>
+              </div>
             </div>
-            <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-2xl mx-auto">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-primary">15.5%</div>
-                <div className="text-sm text-muted-foreground">Current APY</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-primary">$2.4M</div>
-                <div className="text-sm text-muted-foreground">
-                  Total Value Locked
+
+            {/* Right side abstract visual */}
+            <div
+              className="relative hidden lg:block animate-fade-in"
+              style={{ animationDelay: "0.8s" }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-gold/5 rounded-3xl transform -rotate-6"></div>
+
+              {/* Floating feature card 1 */}
+              <Card className="absolute top-0 left-0 w-64 transform -rotate-12 -translate-x-12 translate-y-8 shadow-lg hover:scale-105 transition-transform duration-300">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    High APY
+                  </CardTitle>
+                  <TrendingUp className="w-4 h-4 text-green-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-500">15.5%</div>
+                  <p className="text-xs text-muted-foreground">Current Rate</p>
+                </CardContent>
+              </Card>
+
+              {/* Floating feature card 2 */}
+              <Card className="absolute bottom-0 right-0 w-64 transform rotate-12 translate-x-12 -translate-y-8 shadow-lg hover:scale-105 transition-transform duration-300">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    Secured by
+                  </CardTitle>
+                  <Shield className="w-4 h-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-primary">
+                    Custodians
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Trusted Partners
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Central floating icons */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center space-x-4">
+                <div className="w-16 h-16 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md">
+                  <BitcoinIcon size="lg" />
                 </div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-primary">1,200+</div>
-                <div className="text-sm text-muted-foreground">
-                  Active Users
+                <PlusIcon className="w-6 h-6 text-muted-foreground" />
+                <div className="w-16 h-16 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md">
+                  <CoreIcon size="lg" />
+                </div>
+                <ArrowRight className="w-6 h-6 text-muted-foreground" />
+                <div className="w-16 h-16 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md">
+                  <span className="text-gold font-bold text-3xl">₿</span>
                 </div>
               </div>
             </div>
@@ -260,8 +331,8 @@ const Landing = () => {
                   <div>
                     <h3 className="font-semibold mb-2">Trusted Custodians</h3>
                     <p className="text-muted-foreground">
-                      Partner with established custodians like Babylon for
-                      secure lstBTC minting
+                      Partner with established custodians like Famz for secure
+                      lstBTC minting
                     </p>
                   </div>
                 </div>

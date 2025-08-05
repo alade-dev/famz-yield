@@ -60,7 +60,7 @@ const Dashboard = () => {
   );
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div id="hero" className="space-y-8  animate-fade-in">
       {/* Hero Section */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-vault border border-vault-border p-8">
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-primary opacity-5 rounded-full -translate-y-32 translate-x-32"></div>
@@ -131,7 +131,7 @@ const Dashboard = () => {
       )}
 
       {/* Earnings Overview */}
-      <div>
+      <div id="portfolio">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-semibold">Your Earnings</h2>
           <Button variant="ghost" size="sm">
