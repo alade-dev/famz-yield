@@ -207,11 +207,26 @@ const DepositModal = ({
                     variant="secondary"
                     size="sm"
                     className="h-6 px-2 text-xs"
-                    onClick={() =>
+                    onClick={() => {
+                      // Get raw balance value to avoid parseFloat issues with comma-formatted strings
+                      let rawBalance = 0;
+                      if (selectedToken === "BTC") {
+                        rawBalance =
+                          tab === "stake"
+                            ? userBalances.btc
+                            : userBalances.wbtc;
+                      } else if (selectedToken === "CORE") {
+                        rawBalance =
+                          tab === "stake"
+                            ? userBalances.core
+                            : userBalances.stcore;
+                      }
                       setAmount(
-                        (parseFloat(selectedTokenData.balance) / 2).toString()
-                      )
-                    }
+                        selectedToken === "BTC"
+                          ? (rawBalance / 2).toFixed(6)
+                          : (rawBalance / 2).toFixed(2)
+                      );
+                    }}
                   >
                     Half
                   </Button>
@@ -219,7 +234,26 @@ const DepositModal = ({
                     variant="secondary"
                     size="sm"
                     className="h-6 px-2 text-xs"
-                    onClick={() => setAmount(selectedTokenData.balance)}
+                    onClick={() => {
+                      // Get raw balance value for max
+                      let rawBalance = 0;
+                      if (selectedToken === "BTC") {
+                        rawBalance =
+                          tab === "stake"
+                            ? userBalances.btc
+                            : userBalances.wbtc;
+                      } else if (selectedToken === "CORE") {
+                        rawBalance =
+                          tab === "stake"
+                            ? userBalances.core
+                            : userBalances.stcore;
+                      }
+                      setAmount(
+                        selectedToken === "BTC"
+                          ? rawBalance.toFixed(6)
+                          : rawBalance.toFixed(2)
+                      );
+                    }}
                   >
                     Max
                   </Button>

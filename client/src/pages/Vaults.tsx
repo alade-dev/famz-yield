@@ -48,8 +48,8 @@ const Vaults = () => {
 
   // Price management state
   const [prices, setPrices] = useState({
-    wbtc: 114750, // Default price
-    stcore: 0.49, // Default price
+    wbtc: 0,
+    stcore: 0,
   });
   const [priceLoading, setPriceLoading] = useState(false);
   const [lastPriceUpdate, setLastPriceUpdate] = useState<number>(0);
@@ -69,6 +69,7 @@ const Vaults = () => {
       // Simulate API call with realistic price fluctuations
       await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate network delay
 
+      // TODO: Get prices from API
       const baseWbtcPrice = 114750;
       const baseStcorePrice = 0.49;
 
@@ -741,7 +742,7 @@ const Vaults = () => {
                       variant="secondary"
                       size="sm"
                       className="absolute right-2 top-1/2 transform -translate-y-1/2"
-                      onClick={() => setCoreAmount(maxCore.toString())}
+                      onClick={() => setCoreAmount(maxCore.toFixed(2))}
                     >
                       MAX
                     </Button>
