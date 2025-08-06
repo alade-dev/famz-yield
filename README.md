@@ -301,7 +301,7 @@ Ensure:
 - NatSpec comments are added for new functions
 - No console logs in production code
 
-See `CONTRIBUTING.md` for more details.
+See [CONTRIBUTING](./hardhat/CONTRIBUTING.md) for more details.
 
 ---
 
