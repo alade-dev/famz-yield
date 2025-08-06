@@ -14,6 +14,7 @@ import Dashboard from "./pages/Dashboard";
 import Vaults from "./pages/Vaults";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
+import Footer from "./components/Footer";
 import Faucet from "./pages/Faucet";
 
 const queryClient = new QueryClient();
@@ -38,12 +39,12 @@ const AppContent = () => {
   }, [location]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen bg-background">
       <Navigation />
       <main
-        className={
+        className={`flex-grow ${
           location.pathname === "/" ? "" : "container mx-auto px-4 py-8"
-        }
+        }`}
       >
         <Routes>
           <Route path="/" element={<Landing />} />
@@ -54,6 +55,7 @@ const AppContent = () => {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
+      <Footer />
     </div>
   );
 };
