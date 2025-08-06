@@ -24,10 +24,10 @@ contract VaultNew is Ownable, ReentrancyGuard {
     uint256 private constant RATE_BASE = 1e6;
 
     /// @notice Address of the wBTC token
-    address public immutable wBTC;
+    IERC20 public immutable wBTC;
 
-    /// @notice Address of the stCORE token  
-    address public immutable stCORE;
+    /// @notice Address of the stCORE token
+    IERC20 public immutable stCORE;
 
     /// @notice The custodian contract that stores tokens
     Custodian public immutable custodian;
@@ -55,6 +55,15 @@ contract VaultNew is Ownable, ReentrancyGuard {
 
     /// @notice Mapping of LST tokens that are whitelisted for deposit
     mapping(address => bool) public isLSTWhitelisted;
+
+    /// @notice List of all depositors (to support proportional yield)
+    address[] public depositors;
+
+    /// @notice Tracks individual user's lstBTC balance (mirror of ERC20, for easier iteration)
+    mapping(address => uint256) public userBalances;
+
+    /// @notice Checks if a user has been added to depositors list
+    mapping(address => bool) private hasDepositor;
 
     address public constant CORE_NATIVE = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
@@ -126,6 +135,8 @@ contract VaultNew is Ownable, ReentrancyGuard {
      */
     event MinimumAmountsUpdated(uint256 depositMin, uint256 redeemMin);
 
+    event YieldInjected(address indexed caller, uint256 amount);
+
     /**
      * @notice Constructs the Vault with required dependencies
      * @param _wBTC Address of the wBTC token
@@ -143,7 +154,7 @@ contract VaultNew is Ownable, ReentrancyGuard {
         require(_custodian != address(0), "Invalid custodian address");
         require(_lstBTC != address(0), "Invalid lstBTC address");
 
-        wBTC = _wBTC;
+        wBTC = IERC20(_wBTC); 
         custodian = Custodian(_custodian);
         lstBTC = LstBTCNew(_lstBTC);
 
@@ -205,6 +216,13 @@ contract VaultNew is Ownable, ReentrancyGuard {
 
         lstBTC.mint(msg.sender, lstBTCMinted);
 
+        // After minting lstBTC
+        if (!hasDepositor[msg.sender]) {
+            hasDepositor[msg.sender] = true;
+            depositors.push(msg.sender);
+        }
+        userBalances[msg.sender] += lstBTCMinted;
+
         emit DepositSuccessful(msg.sender, amountWBTC, amountStCORE, lstBTCMinted);
     }
 
@@ -219,6 +237,9 @@ contract VaultNew is Ownable, ReentrancyGuard {
 
         // Burn lstBTC from user first (vault has burning rights)
         lstBTC.burn(msg.sender, lstBTCAmount);
+
+        // After burning lstBTC
+        userBalances[msg.sender] -= lstBTCAmount;
 
         // Call custodian to process redemption
         (uint256 wBTCReturned, uint256 stCOREReturned) = custodian.redeem(msg.sender, lstBTCAmount);
@@ -263,13 +284,44 @@ contract VaultNew is Ownable, ReentrancyGuard {
      * @dev Calculates proportional yield for all holders and distributes
      * @param totalYieldAmount Total yield to distribute
      */
-    function distributeYieldProportionally(uint256 totalYieldAmount) external onlyOperator nonReentrant {
+    function _distributeYieldProportionally(uint256 totalYieldAmount) internal {
         require(totalYieldAmount > 0, "Yield amount must be positive");
-        
         uint256 totalSupply = lstBTC.totalSupply();
         require(totalSupply > 0, "No lstBTC supply");
-        
-        emit YieldDistributed(totalYieldAmount, 0);
+
+        address[] memory recipients = new address[](depositors.length);
+        uint256[] memory amounts = new uint256[](depositors.length);
+        uint256 count = 0;
+
+        for (uint256 i = 0; i < depositors.length; i++) {
+            address user = depositors[i];
+            uint256 balance = userBalances[user];
+            if (balance > 0) {
+                uint256 share = (balance * totalYieldAmount) / totalSupply;
+                if (share > 0) {
+                    recipients[count] = user;
+                    amounts[count] = share;
+                    count++;
+                }
+            }
+        }
+
+        assembly {
+            mstore(recipients, count)
+            mstore(amounts, count)
+        }
+
+        lstBTC.distributeYield(recipients, amounts);
+        emit YieldDistributed(totalYieldAmount, count);
+    }
+
+    /**
+     * @notice Internally distributes yield to all lstBTC holders proportionally
+     * @dev Uses depositors list and userBalances to calculate shares
+     * @param totalYieldAmount Total yield to distribute (in BTC units, 1e18 scale)
+     */
+    function distributeYieldProportionally(uint256 totalYieldAmount) external onlyOperator {
+        _distributeYieldProportionally(totalYieldAmount);
     }
 
     /**
@@ -285,6 +337,25 @@ contract VaultNew is Ownable, ReentrancyGuard {
 
         payable(protocolFeeReceiver).transfer(feeAmount);
         emit FeesCollected(feeAmount);
+    }
+
+    /// @notice Notifies the custodian of new BTC-denominated yield and triggers distribution
+    /// @dev Only owner (operator) can call. Yield is backed by wBTC in custody.
+    /// @param amount Amount of yield to inject (in BTC, 1e18 scale)
+    function notifyYield(uint256 amount) external onlyOperator {
+        require(amount > 0, "Custodian: yield amount must be positive");
+        require(
+            wBTC.balanceOf(address(custodian)) >= amount,
+            "Custodian: insufficient wBTC balance for yield injection"
+        );
+
+        // sanity check for max yield rate (e.g., 10% per week max)
+        uint256 totalBTC = custodian.getTotalBTCValue();
+        require(amount <= totalBTC / 10, "Custodian: yield too high");
+
+        emit YieldInjected(msg.sender, amount);
+
+        _distributeYieldProportionally(amount);
     }
 
     // --- Admin Functions ---

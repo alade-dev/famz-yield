@@ -17,7 +17,7 @@ describe("New Vault System", function () {
     const MockERC20 = await ethers.getContractFactory("MockERC20");
     wBTC = await MockERC20.deploy("Wrapped Bitcoin", "wBTC", 18);
     await wBTC.waitForDeployment();
-    
+
     stCORE = await MockERC20.deploy("Staked CORE", "stCORE", 18);
     await stCORE.waitForDeployment();
 
@@ -58,7 +58,7 @@ describe("New Vault System", function () {
     await vault.setFeeReceiver(feeReceiver.address);
     await lstBTC.setMinter(await vault.getAddress(), true);
     await lstBTC.setYieldDistributor(await vault.getAddress(), true);
-    
+
     // Whitelist stCORE as LST token
     await vault.whitelistLST(await stCORE.getAddress(), true);
 
@@ -71,9 +71,10 @@ describe("New Vault System", function () {
 
     //set initial prices of corenative in price oracle
     await priceOracle.setPrice(CORE_NATIVE, ethers.parseEther("0.00000888")); // 1 CORE = 0.00000888 BTC
-    await priceOracle.setPrice(await stCORE.getAddress(), ethers.parseEther("1.418023")); // 1 stCORE = 1.418023 BTC
-
-
+    await priceOracle.setPrice(
+      await stCORE.getAddress(),
+      ethers.parseEther("1.418023")
+    ); // 1 stCORE = 1.418023 BTC
   });
 
   describe("Deployment", function () {
@@ -81,13 +82,19 @@ describe("New Vault System", function () {
       expect(await vault.wBTC()).to.equal(await wBTC.getAddress());
       expect(await vault.custodian()).to.equal(await custodian.getAddress());
       expect(await vault.lstBTC()).to.equal(await lstBTC.getAddress());
-      expect(await custodian.priceOracle()).to.equal(await priceOracle.getAddress());
+      expect(await custodian.priceOracle()).to.equal(
+        await priceOracle.getAddress()
+      );
     });
 
     it("Should set up authorizations correctly", async function () {
-      expect(await custodian.authorizedVault()).to.equal(await vault.getAddress());
-      expect(await lstBTC.authorizedMinters(await vault.getAddress())).to.be.true;
-      expect(await lstBTC.yieldDistributors(await vault.getAddress())).to.be.true;
+      expect(await custodian.authorizedVault()).to.equal(
+        await vault.getAddress()
+      );
+      expect(await lstBTC.authorizedMinters(await vault.getAddress())).to.be
+        .true;
+      expect(await lstBTC.yieldDistributors(await vault.getAddress())).to.be
+        .true;
     });
   });
 
@@ -101,7 +108,9 @@ describe("New Vault System", function () {
       await stCORE.connect(user1).approve(vault.getAddress(), stCOREAmount);
 
       // Perform deposit with LST token address
-      const tx = await vault.connect(user1).deposit(wBTCAmount, stCOREAmount, await stCORE.getAddress());
+      const tx = await vault
+        .connect(user1)
+        .deposit(wBTCAmount, stCOREAmount, await stCORE.getAddress());
       await tx.wait();
 
       // Check lstBTC balance
@@ -110,7 +119,9 @@ describe("New Vault System", function () {
 
       // Check that tokens were transferred to custodian
       expect(await wBTC.balanceOf(custodian.getAddress())).to.equal(wBTCAmount);
-      expect(await stCORE.balanceOf(custodian.getAddress())).to.equal(stCOREAmount);
+      expect(await stCORE.balanceOf(custodian.getAddress())).to.equal(
+        stCOREAmount
+      );
     });
 
     it("Should calculate correct deposit ratios", async function () {
@@ -120,14 +131,22 @@ describe("New Vault System", function () {
       await wBTC.connect(user1).approve(vault.getAddress(), wBTCAmount);
       await stCORE.connect(user1).approve(vault.getAddress(), stCOREAmount);
 
-      await vault.connect(user1).deposit(wBTCAmount, stCOREAmount, await stCORE.getAddress());
+      await vault
+        .connect(user1)
+        .deposit(wBTCAmount, stCOREAmount, await stCORE.getAddress());
 
       const [r_wBTC, r_stCORE] = await vault.getUserRatios(user1.address);
-      
+
       // wBTC ratio should be ~99.9% (1 BTC out of 1.00101 total)
       // stCORE ratio should be ~0.1% (0.00101 BTC out of 1.00101 total)
-      expect(r_wBTC).to.be.closeTo(ethers.parseEther("0.999"), ethers.parseEther("0.001"));
-      expect(r_stCORE).to.be.closeTo(ethers.parseEther("0.001"), ethers.parseEther("0.001"));
+      expect(r_wBTC).to.be.closeTo(
+        ethers.parseEther("0.999"),
+        ethers.parseEther("0.001")
+      );
+      expect(r_stCORE).to.be.closeTo(
+        ethers.parseEther("0.001"),
+        ethers.parseEther("0.001")
+      );
     });
 
     it("Should revert if deposit is below minimum", async function () {
@@ -149,7 +168,9 @@ describe("New Vault System", function () {
 
       await wBTC.connect(user1).approve(vault.getAddress(), wBTCAmount);
       await stCORE.connect(user1).approve(vault.getAddress(), stCOREAmount);
-      await vault.connect(user1).deposit(wBTCAmount, stCOREAmount, await stCORE.getAddress());
+      await vault
+        .connect(user1)
+        .deposit(wBTCAmount, stCOREAmount, await stCORE.getAddress());
     });
 
     it("Should redeem lstBTC for underlying assets", async function () {
@@ -157,7 +178,9 @@ describe("New Vault System", function () {
       // Convert to BigInt for division
       const redeemAmount = lstBTCBalance / 2n; // Redeem half
 
-      const tx = await vault.connect(user1).redeem(redeemAmount, await stCORE.getAddress());
+      const tx = await vault
+        .connect(user1)
+        .redeem(redeemAmount, await stCORE.getAddress());
       await tx.wait();
 
       // Check that lstBTC was burned
@@ -198,24 +221,30 @@ describe("New Vault System", function () {
       // User1 deposit
       await wBTC.connect(user1).approve(vault.getAddress(), wBTCAmount);
       await stCORE.connect(user1).approve(vault.getAddress(), stCOREAmount);
-      await vault.connect(user1).deposit(wBTCAmount, stCOREAmount, await stCORE.getAddress());
+      await vault
+        .connect(user1)
+        .deposit(wBTCAmount, stCOREAmount, await stCORE.getAddress());
 
       // User2 deposit
       await wBTC.connect(user2).approve(vault.getAddress(), wBTCAmount);
       await stCORE.connect(user2).approve(vault.getAddress(), stCOREAmount);
-      await vault.connect(user2).deposit(wBTCAmount, stCOREAmount, await stCORE.getAddress());
+      await vault
+        .connect(user2)
+        .deposit(wBTCAmount, stCOREAmount, await stCORE.getAddress());
     });
 
     it("Should distribute yield to users", async function () {
       const yieldAmount = ethers.parseEther("0.1"); // 0.1 BTC yield
-      
+
       const initialBalance1 = await lstBTC.balanceOf(user1.address);
       const initialBalance2 = await lstBTC.balanceOf(user2.address);
 
-      const tx = await vault.connect(operator).distributeYield(
-        [user1.address, user2.address],
-        [yieldAmount / 2n, yieldAmount / 2n]
-      );
+      const tx = await vault
+        .connect(operator)
+        .distributeYield(
+          [user1.address, user2.address],
+          [yieldAmount / 2n, yieldAmount / 2n]
+        );
 
       await expect(tx).to.emit(vault, "YieldDistributed");
 
@@ -223,8 +252,8 @@ describe("New Vault System", function () {
       const newBalance1 = await lstBTC.balanceOf(user1.address);
       const newBalance2 = await lstBTC.balanceOf(user2.address);
 
-      expect(newBalance1).to.equal(initialBalance1 + (yieldAmount / 2n));
-      expect(newBalance2).to.equal(initialBalance2 + (yieldAmount / 2n));
+      expect(newBalance1).to.equal(initialBalance1 + yieldAmount / 2n);
+      expect(newBalance2).to.equal(initialBalance2 + yieldAmount / 2n);
     });
 
     it("Should only allow operator to distribute yield", async function () {
@@ -233,6 +262,48 @@ describe("New Vault System", function () {
       await expect(
         vault.connect(user1).distributeYield([user1.address], [yieldAmount])
       ).to.be.revertedWith("Not operator");
+    });
+
+    it("Should inject and distribute BTC yield correctly", async function () {
+      const yieldAmount = ethers.parseUnits("0.1", 18); // 0.1 BTC yield
+
+      // Mint wBTC to operator (simulate earned yield)
+      await wBTC.mint(operator.address, yieldAmount);
+      const operatorBalance = await wBTC.balanceOf(operator.address);
+      expect(operatorBalance).to.be.gte(yieldAmount);
+
+      await wBTC.connect(operator).approve(custodian.getAddress(), yieldAmount);
+      await wBTC
+        .connect(operator)
+        .transfer(custodian.getAddress(), yieldAmount);
+
+      const custodianBalance = await wBTC.balanceOf(custodian.getAddress());
+      expect(custodianBalance).to.be.gte(yieldAmount);
+
+      // Record initial balances
+      const initialBalance1 = await lstBTC.balanceOf(user1.address);
+      const initialBalance2 = await lstBTC.balanceOf(user2.address);
+      const totalSupplyBefore = await lstBTC.totalSupply();
+
+      expect(initialBalance1).to.be.gt(0);
+      expect(initialBalance2).to.be.gt(0);
+
+      // Inject yield via Vault
+      await expect(vault.connect(operator).notifyYield(yieldAmount))
+        .to.emit(vault, "YieldInjected")
+        .withArgs(operator.address, yieldAmount);
+
+      // Verify distribution
+      const finalBalance1 = await lstBTC.balanceOf(user1.address);
+      const finalBalance2 = await lstBTC.balanceOf(user2.address);
+      const totalSupplyAfter = await lstBTC.totalSupply();
+
+      // Each user gets 0.05 BTC yield
+      const expectedYieldPerUser = yieldAmount / 2n;
+
+      expect(finalBalance1).to.equal(initialBalance1 + expectedYieldPerUser);
+      expect(finalBalance2).to.equal(initialBalance2 + expectedYieldPerUser);
+      expect(totalSupplyAfter).to.equal(totalSupplyBefore + yieldAmount);
     });
   });
 
@@ -256,15 +327,14 @@ describe("New Vault System", function () {
       const newRedeemMin = ethers.parseEther("0.01");
 
       await vault.setMinimumAmounts(newDepositMin, newRedeemMin);
-      
+
       expect(await vault.depositMinAmount()).to.equal(newDepositMin);
       expect(await vault.redeemMinAmount()).to.equal(newRedeemMin);
     });
 
     it("Should not allow non-owner to call admin functions", async function () {
-      await expect(
-        vault.connect(user1).setOperator(user2.address)
-      ).to.be.reverted; // Just check for reversion without specific message
+      await expect(vault.connect(user1).setOperator(user2.address)).to.be
+        .reverted; // Just check for reversion without specific message
     });
   });
 
@@ -275,7 +345,9 @@ describe("New Vault System", function () {
 
       await wBTC.connect(user1).approve(vault.getAddress(), wBTCAmount);
       await stCORE.connect(user1).approve(vault.getAddress(), stCOREAmount);
-      await vault.connect(user1).deposit(wBTCAmount, stCOREAmount, await stCORE.getAddress());
+      await vault
+        .connect(user1)
+        .deposit(wBTCAmount, stCOREAmount, await stCORE.getAddress());
     });
 
     it("Should return correct total BTC value", async function () {
@@ -303,20 +375,26 @@ describe("New Vault System", function () {
       const feeAmount = ethers.parseEther("0.1");
       await owner.sendTransaction({
         to: vault.getAddress(),
-        value: feeAmount
+        value: feeAmount,
       });
 
-      const initialBalance = await ethers.provider.getBalance(feeReceiver.address);
+      const initialBalance = await ethers.provider.getBalance(
+        feeReceiver.address
+      );
       await vault.collectFees();
-      
-      const finalBalance = await ethers.provider.getBalance(feeReceiver.address);
+
+      const finalBalance = await ethers.provider.getBalance(
+        feeReceiver.address
+      );
       expect(finalBalance - initialBalance).to.equal(feeAmount);
     });
 
     it("Should revert fee collection if no fees to collect", async function () {
-      // Instead of trying to set to zero address (which is rejected), 
+      // Instead of trying to set to zero address (which is rejected),
       // we'll test the other revert condition
-      await expect(vault.collectFees()).to.be.revertedWith("No fees to collect");
+      await expect(vault.collectFees()).to.be.revertedWith(
+        "No fees to collect"
+      );
     });
   });
 });
