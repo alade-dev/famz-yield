@@ -313,10 +313,9 @@ MIT License. See [LICENSE](./hardhat/LICENSE) for full terms.
 
 ## Contact
 
-- **Discord**: [famz-yield](https://discord.gg/invite-link)
 - **Twitter**: [@famz_yield](https://x.com/famz_yield)
 
-> 🔒 For security reports, please use a secure channel or DM on Discord.
+> 🔒 For security reports, please use a secure channel.
 
 ---
 
