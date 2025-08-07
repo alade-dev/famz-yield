@@ -1,4 +1,8 @@
-# ![Logo](https://via.placeholder.com/100?text=Famz) Famz Yielding Protocol
+<p align="center">
+  <img src="./docs/logo5.png" alt="Logo" width="280"/>
+</p>
+
+<h1 align="center">Famz Yielding Protocol</h1>
 
 > ⚠️ **WARNING**: This project is currently in **testnet phase**. All contracts and tokens are **simulated**. Do **not** deposit real funds.
 
