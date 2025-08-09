@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity ^0.8.24;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
@@ -7,16 +7,15 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import "./LstBTC.sol";
-import "./interface/ICustodianAdapter.sol";
-import "./interface/IEarn.sol";
+import "./Custodian.sol";
 
 /**
  * @title Vault
  * @author Team
- * @notice Core vault contract for depositing wBTC and LST to receive yield-bearing lstBTC
- * @dev Users deposit wBTC and LST to mint lstBTC. They can later redeem lstBTC to receive
- *      underlying assets back based on current BTC backing and deposit composition.
- *      The exchange rate increases as yield is realized.
+ * @notice Core vault contract for depositing wBTC and stCORE to receive lstBTC
+ * @dev Users interact with this contract to deposit/redeem. Actual tokens are stored in Custodian.
+ *      1 lstBTC = 1 BTC (fixed rate). Yield is distributed by increasing lstBTC balances.
+ *      Only this vault has minting rights for lstBTC.
  */
 contract Vault is Ownable, ReentrancyGuard {
     using Address for address payable;
@@ -24,25 +23,19 @@ contract Vault is Ownable, ReentrancyGuard {
     /// @notice Base unit for fee calculations (1e6 = 100%)
     uint256 private constant RATE_BASE = 1e6;
 
-    /// @notice Address of the wBTC token (8 decimals)
-    address public wBTC;
+    /// @notice Address of the wBTC token
+    IERC20 public immutable wBTC;
 
-    /// @notice Address of the custodian adapter for BTC valuation
-    address public custodianAdapter;
+    /// @notice Address of the stCORE token
+    IERC20 public immutable stCORE;
 
-    /// @notice The lstBTC token representing staked position
-    LstBTC public lstBTC;
+    /// @notice The custodian contract that stores tokens
+    Custodian public immutable custodian;
 
-    /// @notice Yield-bearing contract (e.g., stCORE vault)
-    IEarn public earn;
+    /// @notice The lstBTC token
+    LstBTC public immutable lstBTC;
 
-    /// @notice Price of 1 wBTC in USD (8 decimals, e.g., $118,000 = 118_000 * 1e8)
-    uint256 public wbtcPriceUSD;
-
-    /// @notice Price of 1 CORE in USD (8 decimals, e.g., $0.5 = 0.5 * 1e8)
-    uint256 public corePriceUSD;
-
-    /// @notice Minimum wBTC deposit amount in sats (8 decimals)
+    /// @notice Minimum wBTC deposit amount (1e18 scale)
     uint256 public depositMinAmount;
 
     /// @notice Minimum lstBTC amount required to redeem
@@ -51,123 +44,123 @@ contract Vault is Ownable, ReentrancyGuard {
     /// @notice Fee points for protocol fee (1e6 = 100%, e.g., 10,000 = 1%)
     uint256 public protocolFeePoints;
 
-    /// @notice Address to receive protocol fees in ETH (CORE)
+    /// @notice Address to receive protocol fees
     address public protocolFeeReceiver;
 
-    /// @notice Address authorized to perform operator functions (e.g., update prices)
+    /// @notice Address authorized to perform operator functions
     address public operator;
+
+    /// @notice Total protocol fees collected (in ETH/CORE)
+    uint256 public totalFeesCollected;
 
     /// @notice Mapping of LST tokens that are whitelisted for deposit
     mapping(address => bool) public isLSTWhitelisted;
 
-    /// @notice User deposit history: tracks each deposit's wBTC, LST, and timestamp
-    struct Deposit {
-        uint256 wbtcAmount;      // Amount of wBTC deposited (in sats)
-        uint256 lstTokenAmount;  // Amount of LST token deposited (in its native decimals)
-        address lstToken;        // Address of the LST token
-        uint256 depositTime;     // Timestamp of deposit
-    }
+    /// @notice List of all depositors (to support proportional yield)
+    address[] public depositors;
 
-    /// @notice Mapping from user address to their deposit history
-    mapping(address => Deposit[]) public deposits;
+    /// @notice Tracks individual user's lstBTC balance (mirror of ERC20, for easier iteration)
+    mapping(address => uint256) public userBalances;
+
+    /// @notice Checks if a user has been added to depositors list
+    mapping(address => bool) private hasDepositor;
+
+    address public constant CORE_NATIVE = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     // --- EVENTS ---
 
     /**
      * @notice Emitted when a user successfully deposits assets
      * @param user The address of the depositor
-     * @param amountWBTC The amount of wBTC deposited (in sats)
-     * @param amountLST The amount of LST deposited
-     * @param lstToken The address of the LST token
-     * @param lstBTC The amount of lstBTC minted
+     * @param amountWBTC The amount of wBTC deposited (1e18)
+     * @param amountStCORE The amount of stCORE deposited
+     * @param lstBTCMinted The amount of lstBTC minted
      */
-    event DepositSuccessful(address indexed user, uint256 amountWBTC, uint256 amountLST, address indexed lstToken, uint256 lstBTC);
+    event DepositSuccessful(
+        address indexed user, 
+        uint256 amountWBTC, 
+        uint256 amountStCORE, 
+        uint256 lstBTCMinted
+    );
 
     /**
      * @notice Emitted when a user redeems lstBTC for underlying assets
      * @param user The address of the redeemer
-     * @param lstBTC The amount of lstBTC burned
-     * @param wbtcOut The amount of wBTC transferred out (in sats)
-     * @param lstOut The amount of LST transferred out
+     * @param lstBTCAmount The amount of lstBTC burned
+     * @param wBTCReturned The amount of wBTC returned
+     * @param stCOREReturned The amount of stCORE returned
      */
-    event Redeem(address indexed user, uint256 lstBTC, uint256 wbtcOut, uint256 lstOut);
+    event RedeemSuccessful(
+        address indexed user, 
+        uint256 lstBTCAmount, 
+        uint256 wBTCReturned, 
+        uint256 stCOREReturned
+    );
 
     /**
-     * @notice Emitted when the exchange rate is updated due to yield
-     * @param newRate The new exchange rate (1e18 base), where 1 lstBTC = newRate / 1e18 BTC
+     * @notice Emitted when yield is distributed to users
+     * @param totalYieldDistributed Total yield distributed
+     * @param recipientCount Number of recipients
      */
-    event UpdateExchangeRate(uint256 newRate);
-
-    /**
-     * @notice Emitted when oracle prices are updated
-     * @param wbtcPrice New wBTC price in USD (8 decimals)
-     * @param corePrice New CORE price in USD (8 decimals)
-     */
-    event UpdateOraclePrices(uint256 wbtcPrice, uint256 corePrice);
-
-    /**
-     * @notice Emitted when the fee receiver address is updated
-     * @param receiver The new fee receiver address
-     */
-    event UpdateFeeReceiver(address receiver);
-
-    /**
-     * @notice Emitted when the protocol fee points are updated
-     * @param points The new fee points (1e6 = 100%)
-     */
-    event UpdateFeePoints(uint256 points);
+    event YieldDistributed(uint256 totalYieldDistributed, uint256 recipientCount);
 
     /**
      * @notice Emitted when the operator address is updated
      * @param operator The new operator address
      */
-    event UpdateOperator(address operator);
+    event OperatorUpdated(address indexed operator);
 
     /**
-     * @notice Emitted when protocol fees are collected in ETH (CORE)
-     * @param amountCORE The amount of ETH collected
+     * @notice Emitted when the fee receiver address is updated
+     * @param feeReceiver The new fee receiver address
      */
-    event FeeCollectedInCORE(uint256 amountCORE);
+    event FeeReceiverUpdated(address indexed feeReceiver);
 
     /**
-     * @notice Emitted when the minimum deposit amount is updated
-     * @param amount The new minimum deposit amount in sats
+     * @notice Emitted when the protocol fee points are updated
+     * @param feePoints The new fee points
      */
-    event UpdateDepositMinAmount(uint256 amount);
+    event ProtocolFeeUpdated(uint256 feePoints);
 
     /**
-     * @notice Emitted when the minimum redeem amount is updated
-     * @param amount The new minimum redeem amount in lstBTC
+     * @notice Emitted when protocol fees are collected
+     * @param amount The amount of fees collected
      */
-    event UpdateRedeemMinAmount(uint256 amount);
+    event FeesCollected(uint256 amount);
+
+    /**
+     * @notice Emitted when minimum amounts are updated
+     * @param depositMin New minimum deposit amount
+     * @param redeemMin New minimum redeem amount
+     */
+    event MinimumAmountsUpdated(uint256 depositMin, uint256 redeemMin);
+
+    event YieldInjected(address indexed caller, uint256 amount);
 
     /**
      * @notice Constructs the Vault with required dependencies
+     * @param _wBTC Address of the wBTC token
+     * @param _custodian Address of the custodian contract
      * @param _lstBTC Address of the lstBTC token contract
-     * @param _adapter Address of the custodian adapter for BTC valuation
-     * @param _wbtc Address of the wBTC token
-     * @param _earn Address of the yield-bearing contract (e.g., stCORE vault)
      * @param initialOwner The initial owner of the contract
      */
     constructor(
+        address _wBTC,
+        address _custodian,
         address _lstBTC,
-        address _adapter,
-        address _wbtc,
-        address _earn,
         address initialOwner
     ) Ownable(initialOwner) {
-        require(_lstBTC != address(0) && _adapter != address(0), "Zero address");
-        require(_wbtc != address(0), "Zero WBTC");
-        wBTC = _wbtc;
-        lstBTC = LstBTC(_lstBTC);
-        custodianAdapter = _adapter;
-        earn = IEarn(_earn);
+        require(_wBTC != address(0), "Invalid wBTC address");
+        require(_custodian != address(0), "Invalid custodian address");
+        require(_lstBTC != address(0), "Invalid lstBTC address");
 
-        depositMinAmount = 100;  // 0.000001 BTC in sats
-        redeemMinAmount = 1e18;  // 1 lstBTC
-        protocolFeePoints = 0;
-        wbtcPriceUSD = 118_000 * 1e8; // $118k
-        corePriceUSD = 0.5 * 1e8;    // $0.5
+        wBTC = IERC20(_wBTC); 
+        custodian = Custodian(_custodian);
+        lstBTC = LstBTC(_lstBTC);
+
+        depositMinAmount = 1e15; // 0.001 BTC minimum
+        redeemMinAmount = 1e15;  // 0.001 lstBTC minimum
+        protocolFeePoints = 0;   // No fees initially
     }
 
     /// @notice Modifier to restrict access to the operator
@@ -184,193 +177,240 @@ contract Vault is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Deposit wBTC and LST to mint lstBTC
-     * @dev Pulls tokens via transferFrom. Records deposit for redemption ratio calculation.
-     * @param amountWBTC Amount of wBTC to deposit (in sats, 8 decimals)
-     * @param amountLST Amount of LST to deposit (in its native decimals)
-     * @param lstToken Address of the LST token
+     * @notice Deposit wBTC and stCORE to mint lstBTC
+     * @dev Transfers tokens to vault, then vault transfers to custodian for processing
+     * @param amountWBTC Amount of wBTC to deposit (1e18 scale)
+     * @param amountStCORE Amount of stCORE to deposit (token units)
      */
     function deposit(
         uint256 amountWBTC,
-        uint256 amountLST,
+        uint256 amountStCORE,
         address lstToken
     ) external nonReentrant onlyWhitelistedLST(lstToken) {
-        require(amountWBTC > 0 && amountLST > 0, "Must deposit both wBTC and LST");
+        require(amountWBTC > 0 && amountStCORE > 0, "Deposits must be greater than zero");
 
-        IERC20(wBTC).transferFrom(msg.sender, address(this), amountWBTC);
-        IERC20(lstToken).transferFrom(msg.sender, address(this), amountLST);
+        //(uint256 stCOREPrice, uint256 coreBTCPrice) = custodian.getCurrentPrices();
+        uint256 stCOREPrice = custodian.priceOracle().getPrice(lstToken);
+        uint256 coreBTCPrice = custodian.priceOracle().getPrice(CORE_NATIVE);
+        uint256 stCOREInBTC = 0;
+        if (amountStCORE > 0) {
+            stCOREInBTC = (amountStCORE * stCOREPrice * coreBTCPrice) / (1e18 * 1e18);
+        }
+        // Convert wBTC from 8 decimals to 18 decimals for consistent calculation
+        uint256 wBTCIn18Decimals = amountWBTC * 1e10;
+        uint256 totalBTCValue = wBTCIn18Decimals + stCOREInBTC;
+        require(totalBTCValue >= depositMinAmount, "Deposit below minimum");
 
-        uint256 totalBTCValue = ICustodianAdapter(custodianAdapter).getValue(amountWBTC, amountLST, lstToken);
-        require(totalBTCValue >= depositMinAmount, "Deposit too small");
+        // Transfer tokens from user to vault
+        if (amountWBTC > 0) {
+            IERC20(wBTC).transferFrom(msg.sender, address(this), amountWBTC);
+            // Approve custodian to spend wBTC
+            IERC20(wBTC).approve(address(custodian), amountWBTC);
+        }
+        if (amountStCORE > 0) {
+            IERC20(lstToken).transferFrom(msg.sender, address(this), amountStCORE);
+            // Approve custodian to spend stCORE
+            IERC20(lstToken).approve(address(custodian), amountStCORE);
+        }
 
-        deposits[msg.sender].push(Deposit({
-            wbtcAmount: amountWBTC,
-            lstTokenAmount: amountLST,
-            lstToken: lstToken,
-            depositTime: block.timestamp
-        }));
+        // Call custodian to process deposit and get mint amount
+        uint256 lstBTCMinted = custodian.deposit(msg.sender, amountWBTC, amountStCORE);
 
-        uint256 btcAmount18 = totalBTCValue * 1e10; // Convert sats to 1e18
-        lstBTC.mintAtValue(msg.sender, btcAmount18);
+        lstBTC.mint(msg.sender, lstBTCMinted);
 
-        emit DepositSuccessful(msg.sender, amountWBTC, amountLST, lstToken, btcAmount18);
+        // After minting lstBTC
+        if (!hasDepositor[msg.sender]) {
+            hasDepositor[msg.sender] = true;
+            depositors.push(msg.sender);
+        }
+        userBalances[msg.sender] += lstBTCMinted;
+
+        emit DepositSuccessful(msg.sender, amountWBTC, amountStCORE, lstBTCMinted);
     }
 
     /**
-     * @notice Redeem lstBTC to receive underlying wBTC and LST
-     * @dev Calculates user's share of total BTC backing and distributes assets
-     *      based on original deposit composition.
-     * @param lstBTCAmount Amount of lstBTC to burn
+     * @notice Redeem lstBTC to receive underlying wBTC and stCORE
+     * @dev Burns lstBTC and receives assets from custodian
+     * @param lstBTCAmount Amount of lstBTC to redeem
      */
-    function redeem(uint256 lstBTCAmount) external nonReentrant {
-        require(lstBTCAmount >= redeemMinAmount, "Too small");
-        require(lstBTC.balanceOf(msg.sender) >= lstBTCAmount, "Insufficient");
-        uint256 totalSupply = lstBTC.totalSupply();
-        require(totalSupply > 0, "No supply");
+    function redeem(uint256 lstBTCAmount, address lstToken) external nonReentrant {
+        require(lstBTCAmount >= redeemMinAmount, "Below minimum redeem amount");
+        require(lstBTC.balanceOf(msg.sender) >= lstBTCAmount, "Insufficient lstBTC balance");
 
-        uint256 userShare = (lstBTCAmount * 1e18) / totalSupply;
-        uint256 totalBTCBacking18 = ICustodianAdapter(custodianAdapter).getTotalVaultBTCBacking();
-
-        (uint256 wbtcRatio, uint256 lstRatio, address lstToken) = _getDepositRatios(msg.sender);
-
-        // Calculate wBTC output in BTC (1e18), then convert to sats (1e8)
-        uint256 wbtcOut = (totalBTCBacking18 * userShare * wbtcRatio) / 1e36;
-        wbtcOut = wbtcOut / 1e10;
-
-        uint256 lstValueBTC = (totalBTCBacking18 * userShare * lstRatio) / 1e36;
-        uint256 lstOut = ICustodianAdapter(custodianAdapter).btcToLST(lstValueBTC, lstToken);
-
-        require(wbtcOut <= IERC20(wBTC).balanceOf(address(this)), "Insufficient wBTC");
-        require(lstOut <= IERC20(lstToken).balanceOf(address(this)), "Insufficient LST");
-
+        // Burn lstBTC from user first (vault has burning rights)
         lstBTC.burn(msg.sender, lstBTCAmount);
-        IERC20(wBTC).transfer(msg.sender, wbtcOut);
-        IERC20(lstToken).transfer(msg.sender, lstOut);
 
-        emit Redeem(msg.sender, lstBTCAmount, wbtcOut, lstOut);
+        // After burning lstBTC
+        userBalances[msg.sender] -= lstBTCAmount;
+
+        // Call custodian to process redemption
+        (uint256 wBTCReturned, uint256 stCOREReturned) = custodian.redeem(msg.sender, lstBTCAmount);
+
+        // Transfer assets from vault to user
+        if (wBTCReturned > 0) {
+            IERC20(wBTC).transfer(msg.sender, wBTCReturned);
+        }
+        if (stCOREReturned > 0) {
+            IERC20(lstToken).transfer(msg.sender, stCOREReturned);
+        }
+
+        emit RedeemSuccessful(msg.sender, lstBTCAmount, wBTCReturned, stCOREReturned);
     }
 
     /**
-     * @notice Calculates the deposit composition ratios for a user
-     * @dev Uses BTC value (not token amount) to determine the proportion of wBTC and LST
-     *      in the user's deposits. This ensures accurate redemption based on value, not quantity.
-     * @param user The address of the user
-     * @return wbtcRatio Proportion of wBTC in user's deposits (1e18 base)
-     * @return lstRatio Proportion of LST in user's deposits (1e18 base)
-     * @return lstToken The LST token address used in deposits
+     * @notice Distributes yield to lstBTC holders (called by operator)
+     * @dev Uses balance increasing method - mints additional lstBTC to users
+     * @param recipients Array of addresses to receive yield
+     * @param amounts Array of yield amounts for each recipient
      */
-    function _getDepositRatios(address user) private view returns (
-        uint256 wbtcRatio,
-        uint256 lstRatio,
-        address lstToken
-    ) {
-        Deposit[] storage deps = deposits[user];
-        require(deps.length > 0, "No deposits");
+    function distributeYield(
+        address[] calldata recipients,
+        uint256[] calldata amounts
+    ) external onlyOperator nonReentrant {
+        require(recipients.length == amounts.length, "Array length mismatch");
+        require(recipients.length > 0, "No recipients provided");
 
-        uint256 totalDepositedBTC = 0;
-        uint256 totalDepositedWBTC = 0;
-        uint256 totalDepositedLST = 0;
-
-        for (uint256 i = 0; i < deps.length; i++) {
-            Deposit storage dep = deps[i];
-            uint256 depValue = ICustodianAdapter(custodianAdapter).getValue(
-                dep.wbtcAmount,
-                dep.lstTokenAmount,
-                dep.lstToken
-            );
-            totalDepositedBTC += depValue;
-            totalDepositedWBTC += dep.wbtcAmount;
-            totalDepositedLST += dep.lstTokenAmount;
-        }
-
-        // Use BTC value, not token amount
-        uint256 wbtcValue = totalDepositedWBTC;
-        uint256 lstValue = ICustodianAdapter(custodianAdapter).getValue(0, totalDepositedLST, deps[0].lstToken);
-
-        wbtcRatio = (wbtcValue * 1e18) / totalDepositedBTC;
-        lstRatio = (lstValue * 1e18) / totalDepositedBTC;
-        lstToken = deps[0].lstToken;
-    }
-
-    // --- Admin & Utility Functions ---
-
-    /**
-     * @notice Updates yield state and exchange rate
-     * @dev Called by operator. Calculates total BTC backing from wBTC and staked CORE.
-     *      Updates lstBTC exchange rate to reflect increased backing.
-     *      Optionally collects protocol fees in ETH.
-     */
-    function updateYield() external onlyOperator nonReentrant {
-        uint256 currentRate = earn.getCurrentExchangeRate();
-        uint256 stcoreBalance = IERC20(address(earn)).balanceOf(address(this));
-        uint256 coreValue = (stcoreBalance * currentRate) / RATE_BASE;
-
-        uint256 wbtcBalance = IERC20(wBTC).balanceOf(address(this));
-        uint256 totalBTCBacking = wbtcBalance + (coreValue * 1e8) / wbtcPriceUSD;
-        uint256 totalBTCBacking18 = totalBTCBacking * 1e10;
-
-        uint256 supply = lstBTC.totalSupply();
-        if (supply > 0) {
-            uint256 newRate = (totalBTCBacking18 * 1e18) / supply;
-            lstBTC.updateExchangeRate(newRate);
-            emit UpdateExchangeRate(newRate);
-        }
-
-        if (protocolFeePoints > 0 && address(this).balance > 0 && protocolFeeReceiver != address(0)) {
-            uint256 feeInCORE = (address(this).balance * protocolFeePoints) / RATE_BASE;
-            if (feeInCORE > 0) {
-                payable(protocolFeeReceiver).transfer(feeInCORE);
-                emit FeeCollectedInCORE(feeInCORE);
+        uint256 totalYield = 0;
+        for (uint256 i = 0; i < recipients.length; i++) {
+            if (amounts[i] > 0) {
+                lstBTC.distributeYieldToUser(recipients[i], amounts[i]);
+                totalYield += amounts[i];
             }
         }
+
+        emit YieldDistributed(totalYield, recipients.length);
     }
 
     /**
-     * @notice Sets the yield contract address
-     * @param _earn Address of the new yield contract
+     * @notice Distributes yield to all lstBTC holders proportionally
+     * @dev Calculates proportional yield for all holders and distributes
+     * @param totalYieldAmount Total yield to distribute
      */
-    function setEarn(address _earn) external onlyOwner {
-        require(_earn != address(0), "Zero earn");
-        earn = IEarn(_earn);
+    function _distributeYieldProportionally(uint256 totalYieldAmount) internal {
+        require(totalYieldAmount > 0, "Yield amount must be positive");
+        uint256 totalSupply = lstBTC.totalSupply();
+        require(totalSupply > 0, "No lstBTC supply");
+
+        address[] memory recipients = new address[](depositors.length);
+        uint256[] memory amounts = new uint256[](depositors.length);
+        uint256 count = 0;
+
+        for (uint256 i = 0; i < depositors.length; i++) {
+            address user = depositors[i];
+            uint256 balance = userBalances[user];
+            if (balance > 0) {
+                uint256 share = (balance * totalYieldAmount) / totalSupply;
+                if (share > 0) {
+                    recipients[count] = user;
+                    amounts[count] = share;
+                    count++;
+                }
+            }
+        }
+
+        assembly {
+            mstore(recipients, count)
+            mstore(amounts, count)
+        }
+
+        lstBTC.distributeYield(recipients, amounts);
+        emit YieldDistributed(totalYieldAmount, count);
+    }
+
+    /**
+     * @notice Internally distributes yield to all lstBTC holders proportionally
+     * @dev Uses depositors list and userBalances to calculate shares
+     * @param totalYieldAmount Total yield to distribute (in BTC units, 1e18 scale)
+     */
+    function distributeYieldProportionally(uint256 totalYieldAmount) external onlyOperator {
+        _distributeYieldProportionally(totalYieldAmount);
+    }
+
+    /**
+     * @notice Collects protocol fees from the vault balance
+     * @dev Transfers accumulated fees to the fee receiver
+     */
+    function collectFees() external nonReentrant {
+        require(protocolFeeReceiver != address(0), "Fee receiver not set");
+        require(address(this).balance > 0, "No fees to collect");
+
+        uint256 feeAmount = address(this).balance;
+        totalFeesCollected += feeAmount;
+
+        payable(protocolFeeReceiver).transfer(feeAmount);
+        emit FeesCollected(feeAmount);
+    }
+
+    /// @notice Notifies the custodian of new BTC-denominated yield and triggers distribution
+    /// @dev Only owner (operator) can call. Yield is backed by wBTC in custody.
+    /// @param amount Amount of yield to inject (in BTC, 1e18 scale)
+    function notifyYield(uint256 amount) external onlyOperator {
+        require(amount > 0, "Custodian: yield amount must be positive");
+        require(
+            wBTC.balanceOf(address(custodian)) >= amount,
+            "Custodian: insufficient wBTC balance for yield injection"
+        );
+
+        // sanity check for max yield rate (e.g., 10% per week max)
+        uint256 totalBTC = custodian.getTotalBTCValue();
+        require(amount <= totalBTC / 10, "Custodian: yield too high");
+
+        emit YieldInjected(msg.sender, amount);
+
+        _distributeYieldProportionally(amount);
+    }
+
+    // --- Admin Functions ---
+
+    /**
+     * @notice Sets the operator address
+     * @param _operator Address of the new operator
+     */
+    function setOperator(address _operator) external onlyOwner {
+        require(_operator != address(0), "Invalid operator address");
+        operator = _operator;
+        emit OperatorUpdated(_operator);
     }
 
     /**
      * @notice Sets the protocol fee receiver address
-     * @param receiver Address to receive collected fees
+     * @param _feeReceiver Address to receive protocol fees
      */
-    function setFeeReceiver(address receiver) external onlyOwner {
-        require(receiver != address(0), "Zero address");
-        protocolFeeReceiver = receiver;
-        emit UpdateFeeReceiver(receiver);
+    function setFeeReceiver(address _feeReceiver) external onlyOwner {
+        require(_feeReceiver != address(0), "Invalid fee receiver address");
+        protocolFeeReceiver = _feeReceiver;
+        emit FeeReceiverUpdated(_feeReceiver);
     }
 
     /**
      * @notice Sets the protocol fee rate
-     * @param points Fee points (1e6 = 100%). Must not exceed RATE_BASE.
+     * @param _feePoints Fee points (1e6 = 100%)
      */
-    function setProtocolFeePoints(uint256 points) external onlyOwner {
-        require(points <= RATE_BASE, "Too high");
-        protocolFeePoints = points;
-        emit UpdateFeePoints(points);
+    function setProtocolFeePoints(uint256 _feePoints) external onlyOwner {
+        require(_feePoints <= RATE_BASE, "Fee too high");
+        protocolFeePoints = _feePoints;
+        emit ProtocolFeeUpdated(_feePoints);
     }
 
     /**
-     * @notice Sets the operator address
-     * @param _op Address of the operator
+     * @notice Updates minimum deposit and redeem amounts
+     * @param _depositMin New minimum deposit amount
+     * @param _redeemMin New minimum redeem amount
      */
-    function setOperator(address _op) external onlyOwner {
-        require(_op != address(0), "Zero address");
-        operator = _op;
-        emit UpdateOperator(_op);
+    function setMinimumAmounts(uint256 _depositMin, uint256 _redeemMin) external onlyOwner {
+        require(_depositMin > 0 && _redeemMin > 0, "Amounts must be positive");
+        depositMinAmount = _depositMin;
+        redeemMinAmount = _redeemMin;
+        emit MinimumAmountsUpdated(_depositMin, _redeemMin);
     }
 
     /**
-     * @notice Updates the custodian adapter address
-     * @param _adapter Address of the new custodian adapter
+     * @notice Authorizes the vault as a minter for lstBTC
+     * @dev Should be called after deployment to enable minting
      */
-    function setCustodianAdapter(address _adapter) external onlyOwner {
-        require(_adapter != address(0), "Zero address");
-        custodianAdapter = _adapter;
+    function authorizeMinting() external onlyOwner {
+        lstBTC.setMinter(address(this), true);
+        lstBTC.setYieldDistributor(address(this), true);
     }
 
     /**
@@ -382,50 +422,60 @@ contract Vault is Ownable, ReentrancyGuard {
         isLSTWhitelisted[token] = status;
     }
 
+    // --- View Functions ---
+
     /**
-     * @notice Updates the price oracles for wBTC and CORE
-     * @param _wbtc New wBTC price in USD (8 decimals)
-     * @param _core New CORE price in USD (8 decimals)
+     * @notice Gets the total BTC value stored in the custodian
+     * @return Total BTC value (1e18 scale)
      */
-    function updateOraclePrices(uint256 _wbtc, uint256 _core) external onlyOperator {
-        require(_wbtc > 0 && _core > 0, "Zero price");
-        wbtcPriceUSD = _wbtc;
-        corePriceUSD = _core;
-        emit UpdateOraclePrices(_wbtc, _core);
+    function getTotalBTCValue() external view returns (uint256) {
+        return custodian.getTotalBTCValue();
     }
 
     /**
-     * @notice Updates the minimum deposit amount
-     * @param amount New minimum deposit amount in sats
+     * @notice Gets current oracle prices
+     * @return stCOREPrice stCORE to CORE price
+     * @return coreBTCPrice CORE to BTC price
      */
-    function setDepositMinAmount(uint256 amount) external onlyOwner {
-        require(amount > 0, "Zero amount");
-        depositMinAmount = amount;
-        emit UpdateDepositMinAmount(amount);
+    function getCurrentPrices() external view returns (uint256 stCOREPrice, uint256 coreBTCPrice) {
+        stCOREPrice = custodian.priceOracle().getPrice(address(custodian.stCORE()));
+        coreBTCPrice = custodian.priceOracle().getPrice(CORE_NATIVE);
     }
 
     /**
-     * @notice Updates the minimum redeem amount
-     * @param amount New minimum redeem amount in lstBTC
+     * @notice Gets user's deposit ratios
+     * @param user User address
+     * @return r_wBTC wBTC ratio
+     * @return r_stCORE stCORE ratio
      */
-    function setRedeemMinAmount(uint256 amount) external onlyOwner {
-        require(amount > 0, "Zero amount");
-        redeemMinAmount = amount;
-        emit UpdateRedeemMinAmount(amount);
+    function getUserRatios(address user) external view returns (uint256 r_wBTC, uint256 r_stCORE) {
+        return custodian.getUserRatios(user);
     }
 
     /**
-     * @notice Retrieves all deposits for a user
-     * @param user The user's address
-     * @return An array of Deposit structs
+     * @notice Gets user's lstBTC balance and BTC value
+     * @param user User address
+     * @return balance lstBTC balance
+     * @return btcValue BTC value (since 1 lstBTC = 1 BTC)
      */
-    function getUserDeposits(address user) external view returns (Deposit[] memory) {
-        return deposits[user];
+    function getUserInfo(address user) external view returns (uint256 balance, uint256 btcValue) {
+        balance = lstBTC.balanceOf(user);
+        btcValue = balance;
     }
 
     /**
-     * @notice Allows the contract to receive ETH (CORE)
-     * @dev ETH is used for protocol fees
+     * @notice Allows the contract to receive CORE for fees
      */
-    receive() external payable {}
+    receive() external payable {
+        // Fees can be sent directly to the contract
+    }
+
+    /**
+     * @notice Emergency withdrawal function for owner
+     * @param token Token address to withdraw
+     * @param amount Amount to withdraw
+     */
+    function emergencyWithdraw(address token, uint256 amount) external onlyOwner {
+        IERC20(token).transfer(owner(), amount);
+    }
 }

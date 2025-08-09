@@ -8,75 +8,145 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * @title LstBTC
  * @author Team
  * @notice A yield-bearing ERC20 token representing liquid staked Bitcoin (BTC)
- * @dev 1 lstBTC is pegged to 1 BTC, with the exchange rate increasing over time as yield accrues
- *      Only the Vault contract is authorized to mint, burn, and update the exchange rate
- *      Uses 1e18 precision for BTC value calculations
+ * @dev 1 lstBTC is always equal to 1 BTC. Yield is distributed by increasing user balances
+ *      Only authorized contracts (Vault and Custodian) can mint and distribute yield
+ *      Uses balance increasing method for yield distribution
  */
 contract LstBTC is ERC20, Ownable {
-    /// @notice Base unit for rate calculations (1e18)
-    uint256 private constant RATE_BASE = 1e18;
+    
+    /// @notice Mapping to track authorized minters (Vault contract)
+    mapping(address => bool) public authorizedMinters;
+    
+    /// @notice Mapping to track yield distributors
+    mapping(address => bool) public yieldDistributors;
 
-    /**
-     * @notice The current exchange rate: 1 lstBTC = exchangeRate / 1e18 BTC
-     * @dev Increases as yield is realized and BTC backing grows
-     *      Example: If exchangeRate = 1.05e18, then 1 lstBTC = 1.05 BTC
-     */
-    uint256 public exchangeRate; // 1e18 base, where 1 lstBTC = 1 BTC
+    /// @notice Event emitted when yield is distributed
+    event YieldDistributed(address indexed recipient, uint256 amount);
+    
+    /// @notice Event emitted when a minter is authorized/deauthorized
+    event MinterUpdated(address indexed minter, bool authorized);
+    
+    /// @notice Event emitted when a yield distributor is authorized/deauthorized
+    event YieldDistributorUpdated(address indexed distributor, bool authorized);
 
     /**
      * @notice Constructs the LstBTC token
-     * @param initial_owner The initial owner of the contract (typically the Vault)
+     * @param initialOwner The initial owner of the contract
      */
-    constructor(address initial_owner)
-        Ownable(initial_owner)
+    constructor(address initialOwner)
+        Ownable(initialOwner)
         ERC20("Liquid Staked BTC", "lstBTC")
     {
-        exchangeRate = RATE_BASE; // Initial rate: 1 lstBTC = 1 BTC
+        // Owner starts as authorized minter and yield distributor
+        authorizedMinters[initialOwner] = true;
+        yieldDistributors[initialOwner] = true;
     }
 
     /**
-     * @notice Mints lstBTC to a user based on deposited BTC value
-     * @dev Only callable by the owner (Vault)
-     *      The amount of lstBTC minted is calculated as:
-     *      `amountBTC * RATE_BASE / exchangeRate`
-     *      This ensures users receive tokens based on current exchange rate
-     * @param to The address to mint lstBTC to
-     * @param amountBTC The amount of BTC (in 1e18 units) being deposited
+     * @notice Modifier to check if caller is authorized minter
      */
-    function mintAtValue(address to, uint256 amountBTC) external onlyOwner {
-        uint256 amount = (amountBTC * RATE_BASE) / exchangeRate;
+    modifier onlyMinter() {
+        require(authorizedMinters[msg.sender], "Not authorized minter");
+        _;
+    }
+
+    /**
+     * @notice Modifier to check if caller is authorized yield distributor
+     */
+    modifier onlyYieldDistributor() {
+        require(yieldDistributors[msg.sender], "Not authorized yield distributor");
+        _;
+    }
+
+    /**
+     * @notice Mints lstBTC tokens 1:1 with BTC value
+     * @dev Only callable by authorized minters (Vault contract)
+     * @param to The address to mint lstBTC to
+     * @param amount The amount of lstBTC to mint (1e18 units, 1:1 with BTC)
+     */
+    function mint(address to, uint256 amount) external onlyMinter {
         _mint(to, amount);
     }
 
     /**
      * @notice Burns lstBTC from a user during redemption
-     * @dev Only callable by the owner (Vault)
+     * @dev Only callable by authorized minters (Vault contract)
      * @param from The address to burn lstBTC from
      * @param amount The amount of lstBTC to burn
      */
-    function burn(address from, uint256 amount) external onlyOwner {
+    function burn(address from, uint256 amount) external onlyMinter {
         _burn(from, amount);
     }
 
     /**
-     * @notice Updates the exchange rate to reflect accrued yield
-     * @dev Only callable by the owner (Vault)
-     *      The exchange rate determines how much BTC each lstBTC is worth
-     *      Must be greater than zero
-     * @param newRate The new exchange rate (1e18 base), where 1 lstBTC = newRate / 1e18 BTC
+     * @notice Distributes yield by increasing user balances
+     * @dev Only callable by authorized yield distributors
+     * @param recipients Array of addresses to receive yield
+     * @param amounts Array of yield amounts corresponding to each recipient
      */
-    function updateExchangeRate(uint256 newRate) external onlyOwner {
-        require(newRate > 0, "Rate must be > 0");
-        exchangeRate = newRate;
+    function distributeYield(address[] calldata recipients, uint256[] calldata amounts) external onlyYieldDistributor {
+        require(recipients.length == amounts.length, "Arrays length mismatch");
+        
+        for (uint256 i = 0; i < recipients.length; i++) {
+            if (amounts[i] > 0) {
+                _mint(recipients[i], amounts[i]);
+                emit YieldDistributed(recipients[i], amounts[i]);
+            }
+        }
     }
 
     /**
-     * @notice Calculates the total BTC backing of all outstanding lstBTC
-     * @dev Returns the sum of BTC value represented by all tokens in circulation
-     *      Calculated as: `(totalSupply * exchangeRate) / RATE_BASE`
-     * @return The total BTC value (in 1e18 units) backing all lstBTC
+     * @notice Distributes yield to a single recipient
+     * @dev Only callable by authorized yield distributors
+     * @param recipient Address to receive yield
+     * @param amount Amount of yield to distribute
      */
-    function totalValue() external view returns (uint256) {
-        return (totalSupply() * exchangeRate) / RATE_BASE;
+    function distributeYieldToUser(address recipient, uint256 amount) external onlyYieldDistributor {
+        require(amount > 0, "Amount must be greater than 0");
+        _mint(recipient, amount);
+        emit YieldDistributed(recipient, amount);
+    }
+
+    /**
+     * @notice Authorizes or deauthorizes a minter
+     * @dev Only callable by owner
+     * @param minter Address to update
+     * @param authorized Whether to authorize or deauthorize
+     */
+    function setMinter(address minter, bool authorized) external onlyOwner {
+        require(minter != address(0), "Zero address");
+        authorizedMinters[minter] = authorized;
+        emit MinterUpdated(minter, authorized);
+    }
+
+    /**
+     * @notice Authorizes or deauthorizes a yield distributor
+     * @dev Only callable by owner
+     * @param distributor Address to update
+     * @param authorized Whether to authorize or deauthorize
+     */
+    function setYieldDistributor(address distributor, bool authorized) external onlyOwner {
+        require(distributor != address(0), "Zero address");
+        yieldDistributors[distributor] = authorized;
+        emit YieldDistributorUpdated(distributor, authorized);
+    }
+
+    /**
+     * @notice Returns the total BTC value represented by all lstBTC tokens
+     * @dev Since 1 lstBTC = 1 BTC, this is simply the total supply
+     * @return The total BTC value (in 1e18 units)
+     */
+    function totalBTCValue() external view returns (uint256) {
+        return totalSupply();
+    }
+
+    /**
+     * @notice Returns the BTC value of a user's lstBTC balance
+     * @dev Since 1 lstBTC = 1 BTC, this is simply the user's balance
+     * @param user The user's address
+     * @return The BTC value of the user's lstBTC balance
+     */
+    function userBTCValue(address user) external view returns (uint256) {
+        return balanceOf(user);
     }
 }
