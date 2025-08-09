@@ -11,7 +11,7 @@ This implementation provides a corrected architecture for the Famz yielding prot
 
 ## Architecture
 
-### 1. LstBTC-New Contract (`contracts/LstBTC-New.sol`)
+### 1. LstBTC Contract (`contracts/LstBTC.sol`)
 - ERC20 token representing liquid staked Bitcoin
 - **1 lstBTC = 1 BTC always** (fixed ratio)
 - Yield distributed via balance increases (minting additional tokens to users)
@@ -25,7 +25,7 @@ This implementation provides a corrected architecture for the Famz yielding prot
 - Only processes transactions from authorized Vault contract
 - Integrates with Chainlink price feeds for accurate conversions
 
-### 3. Vault-New Contract (`contracts/Vault-New.sol`)
+### 3. Vault Contract (`contracts/Vault.sol`)
 - Main user interface for deposits and redemptions
 - Has exclusive minting rights for lstBTC
 - Coordinates between user, custodian, and lstBTC token
@@ -63,9 +63,9 @@ This implementation provides a corrected architecture for the Famz yielding prot
 
 ## Contracts Deployed
 
-- **VaultNew**: Main user interface contract
+- **Vault**: Main user interface contract
 - **Custodian**: Token storage and conversion logic
-- **LstBTCNew**: Yield-bearing token with balance increasing mechanism
+- **LstBTC**: Yield-bearing token with balance increasing mechanism
 - **VaultMath**: Pure math library for calculations
 - **MockPriceFeed**: Testing price feed (replace with Chainlink in production)
 

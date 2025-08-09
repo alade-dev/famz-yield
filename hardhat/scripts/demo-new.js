@@ -23,9 +23,9 @@ async function main() {
   // Get contract instances
   const wBTC = await ethers.getContractAt("MockERC20", contracts.wBTC);
   const stCORE = await ethers.getContractAt("MockERC20", contracts.stCORE);
-  const lstBTC = await ethers.getContractAt("LstBTCNew", contracts.lstBTC);
+  const lstBTC = await ethers.getContractAt("LstBTC", contracts.lstBTC);
   const custodian = await ethers.getContractAt("Custodian", contracts.custodian);
-  const vault = await ethers.getContractAt("VaultNew", contracts.vault);
+  const vault = await ethers.getContractAt("Vault", contracts.vault);
 
   console.log("Using contracts:");
   console.log("Vault:", vault.address);

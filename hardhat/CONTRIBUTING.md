@@ -118,7 +118,7 @@ CORE_SCAN_API_KEY=xxxxxxxxx
    Use clear, descriptive commit messages:
 
    ```bash
-   git commit -m "feat: add emergencyWithdraw to VaultNew"
+   git commit -m "feat: add emergencyWithdraw to Vault"
    ```
 
 7. **Push to Your Fork**

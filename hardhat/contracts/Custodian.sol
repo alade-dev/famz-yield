@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./VaultMath.sol";
-import "./LstBTC-New.sol";
+import "./LstBTC.sol";
 
 import "./PriceOracle.sol";
 
@@ -19,7 +19,7 @@ contract Custodian is Ownable, Pausable, ReentrancyGuard {
 
     IERC20 public immutable wBTC;
     IERC20 public immutable stCORE;
-    LstBTCNew public immutable lstBTC;
+    LstBTC public immutable lstBTC;
 
     PriceOracle public immutable priceOracle;
 
@@ -60,7 +60,7 @@ contract Custodian is Ownable, Pausable, ReentrancyGuard {
         
         wBTC = IERC20(_wBTC);
         stCORE = IERC20(_stCORE);
-        lstBTC = LstBTCNew(_lstBTC);
+        lstBTC = LstBTC(_lstBTC);
         priceOracle = PriceOracle(_priceOracle);
     }
 
@@ -212,7 +212,10 @@ contract Custodian is Ownable, Pausable, ReentrancyGuard {
         uint256 wBTCBalance = wBTC.balanceOf(address(this));
         uint256 stCOREBalance = stCORE.balanceOf(address(this));
         
-        if (stCOREBalance == 0) return wBTCBalance;
+        if (stCOREBalance == 0) {
+            // Convert wBTC from 8 decimals to 18 decimals for consistent return format
+            return wBTCBalance * 1e10;
+        }
         
         uint256 price_stCORE_CORE = priceOracle.getPrice(address(stCORE));
         uint256 price_CORE_BTC = priceOracle.getPrice(CORE_NATIVE);
@@ -220,8 +223,11 @@ contract Custodian is Ownable, Pausable, ReentrancyGuard {
         require(price_stCORE_CORE > 0 && price_CORE_BTC > 0, "Invalid prices from oracle");
 
         uint256 stCOREInBTC = VaultMath.btcValueOfStCORE(stCOREBalance, price_stCORE_CORE, price_CORE_BTC);
-
-        return wBTCBalance + stCOREInBTC;
+        
+        // Convert wBTC from 8 decimals to 18 decimals for consistent calculation
+        uint256 wBTCIn18Decimals = wBTCBalance * 1e10;
+        
+        return wBTCIn18Decimals + stCOREInBTC;
     }
 
     /**

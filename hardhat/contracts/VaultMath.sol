@@ -21,7 +21,7 @@ library VaultMath {
     }
 
     /// @notice Calculate how much lstBTC to mint
-    /// @param amountOfwBTC Amount of wBTC (1e18-scaled)
+    /// @param amountOfwBTC Amount of wBTC (8 decimals - native wBTC scale)
     /// @param amountOfStCORE Amount of stCORE (token units)
     /// @param priceStCORE_CORE stCORE to CORE price (1e18-scaled)
     /// @param priceCORE_BTC CORE to BTC price (1e18-scaled)
@@ -32,8 +32,10 @@ library VaultMath {
         uint256 priceStCORE_CORE,
         uint256 priceCORE_BTC
     ) internal pure returns (uint256) {
+        // Convert wBTC from 8 decimals to 18 decimals for consistent calculation
+        uint256 wBTCIn18Decimals = amountOfwBTC * 1e10;
         uint256 stCOREinBTC = btcValueOfStCORE(amountOfStCORE, priceStCORE_CORE, priceCORE_BTC);
-        return amountOfwBTC + stCOREinBTC;
+        return wBTCIn18Decimals + stCOREinBTC;
     }
 
     /// @notice Calculate redemption amounts for wBTC and stCORE
@@ -42,7 +44,7 @@ library VaultMath {
     /// @param r_stCORE User's stCORE deposit ratio (1e18-scaled)
     /// @param priceStCORE_CORE stCORE to CORE price (1e18-scaled)
     /// @param priceCORE_BTC CORE to BTC price (1e18-scaled)
-    /// @return wBTCReturned wBTC to return (1e18-scaled)
+    /// @return wBTCReturned wBTC to return (8 decimals - native wBTC scale)
     /// @return stCOREReturned stCORE to return (token units)
     function calculateRedemption(
         uint256 amountOfLstBTC,
@@ -51,13 +53,16 @@ library VaultMath {
         uint256 priceStCORE_CORE,
         uint256 priceCORE_BTC
     ) internal pure returns (uint256 wBTCReturned, uint256 stCOREReturned) {
-        wBTCReturned = (amountOfLstBTC * r_wBTC) / SCALE;
+        // Calculate wBTC amount in 18 decimals, then convert back to 8 decimals
+        uint256 wBTCIn18Decimals = (amountOfLstBTC * r_wBTC) / SCALE;
+        wBTCReturned = wBTCIn18Decimals / 1e10; // Convert from 18 decimals to 8 decimals
+        
         uint256 btcValueForStCORE = (amountOfLstBTC * r_stCORE) / SCALE;
         stCOREReturned = (btcValueForStCORE * SCALE * SCALE) / (priceStCORE_CORE * priceCORE_BTC);
     }
 
     /// @notice Calculate deposit ratios for a user
-    /// @param amountOfwBTC Amount of wBTC deposited (1e18-scaled)
+    /// @param amountOfwBTC Amount of wBTC deposited (8 decimals - native wBTC scale)
     /// @param amountOfStCORE Amount of stCORE deposited (token units)
     /// @param priceStCORE_CORE stCORE to CORE price (1e18-scaled)
     /// @param priceCORE_BTC CORE to BTC price (1e18-scaled)
@@ -69,12 +74,14 @@ library VaultMath {
         uint256 priceStCORE_CORE,
         uint256 priceCORE_BTC
     ) internal pure returns (uint256 r_wBTC, uint256 r_stCORE) {
+        // Convert wBTC to 18 decimals for consistent calculation
+        uint256 wBTCIn18Decimals = amountOfwBTC * 1e10;
         uint256 stCOREinBTC = btcValueOfStCORE(amountOfStCORE, priceStCORE_CORE, priceCORE_BTC);
-        uint256 totalBTCValue = amountOfwBTC + stCOREinBTC;
+        uint256 totalBTCValue = wBTCIn18Decimals + stCOREinBTC;
         
         require(totalBTCValue > 0, "Total value must be greater than 0");
         
-        r_wBTC = (amountOfwBTC * SCALE) / totalBTCValue;
+        r_wBTC = (wBTCIn18Decimals * SCALE) / totalBTCValue;
         r_stCORE = (stCOREinBTC * SCALE) / totalBTCValue;
     }
 }

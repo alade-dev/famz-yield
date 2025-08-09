@@ -4,7 +4,7 @@ async function main() {
   const [owner] = await ethers.getSigners();
 
   const wBTC = await ethers.getContractAt("MockWBTC", "WBTC_ADDRESS");
-  const vaultNew = await ethers.getContractAt("VaultNew", VAULT_ADDRESS);
+  const vault = await ethers.getContractAt("Vault", VAULT_ADDRESS);
 
   const totalSupply = await wBTC.balanceOf(owner.address);
   console.log("Owner wBTC balance:", ethers.formatUnits(totalSupply, 18));
@@ -13,11 +13,11 @@ async function main() {
   const weeklyYield = ethers.parseUnits("0.01", 18);
 
   // Send yield to Vault
-  await wBTC.transfer(vaultNew.target, weeklyYield);
+  await wBTC.transfer(vault.target, weeklyYield);
   console.log("Injected 0.01 WBTC yield to Vault");
 
   // Notify vault to distribute lstBTC
-  await vaultNew.notifyYield(weeklyYield);
+  await vault.notifyYield(weeklyYield);
   console.log("Distributed lstBTC yield to users");
 }
 

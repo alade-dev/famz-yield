@@ -15,7 +15,7 @@ describe("New Vault System", function () {
 
     // Deploy mock ERC20 tokens
     const MockERC20 = await ethers.getContractFactory("MockERC20");
-    wBTC = await MockERC20.deploy("Wrapped Bitcoin", "wBTC", 18);
+    wBTC = await MockERC20.deploy("Wrapped Bitcoin", "wBTC", 8);
     await wBTC.waitForDeployment();
 
     stCORE = await MockERC20.deploy("Staked CORE", "stCORE", 18);
@@ -27,8 +27,8 @@ describe("New Vault System", function () {
     await priceOracle.waitForDeployment();
 
     // Deploy lstBTC token
-    const LstBTCNew = await ethers.getContractFactory("LstBTCNew");
-    lstBTC = await LstBTCNew.deploy(owner.address);
+    const LstBTC = await ethers.getContractFactory("LstBTC");
+    lstBTC = await LstBTC.deploy(owner.address);
     await lstBTC.waitForDeployment();
 
     // Deploy Custodian with new constructor
@@ -43,8 +43,8 @@ describe("New Vault System", function () {
     await custodian.waitForDeployment();
 
     // Deploy Vault with new constructor
-    const VaultNew = await ethers.getContractFactory("VaultNew");
-    vault = await VaultNew.deploy(
+    const Vault = await ethers.getContractFactory("Vault");
+    vault = await Vault.deploy(
       await wBTC.getAddress(),
       await custodian.getAddress(),
       await lstBTC.getAddress(),
@@ -63,11 +63,12 @@ describe("New Vault System", function () {
     await vault.whitelistLST(await stCORE.getAddress(), true);
 
     // Mint tokens to users for testing
-    const mintAmount = ethers.parseEther("100"); // 100 tokens each
-    await wBTC.mint(user1.address, mintAmount);
-    await stCORE.mint(user1.address, mintAmount);
-    await wBTC.mint(user2.address, mintAmount);
-    await stCORE.mint(user2.address, mintAmount);
+    const wBTCMintAmount = ethers.parseUnits("100", 8); // 100 wBTC (8 decimals)
+    const stCOREMintAmount = ethers.parseEther("100"); // 100 stCORE (18 decimals)
+    await wBTC.mint(user1.address, wBTCMintAmount);
+    await stCORE.mint(user1.address, stCOREMintAmount);
+    await wBTC.mint(user2.address, wBTCMintAmount);
+    await stCORE.mint(user2.address, stCOREMintAmount);
 
     //set initial prices of corenative in price oracle
     await priceOracle.setPrice(CORE_NATIVE, ethers.parseEther("0.00000888")); // 1 CORE = 0.00000888 BTC
@@ -100,8 +101,8 @@ describe("New Vault System", function () {
 
   describe("Deposits", function () {
     it("Should deposit wBTC and stCORE successfully", async function () {
-      const wBTCAmount = ethers.parseEther("1"); // 1 wBTC
-      const stCOREAmount = ethers.parseEther("10"); // 10 stCORE
+      const wBTCAmount = ethers.parseUnits("1", 8); // 1 wBTC (8 decimals)
+      const stCOREAmount = ethers.parseEther("10"); // 10 stCORE (18 decimals)
 
       // Approve vault to spend tokens
       await wBTC.connect(user1).approve(vault.getAddress(), wBTCAmount);
@@ -125,8 +126,8 @@ describe("New Vault System", function () {
     });
 
     it("Should calculate correct deposit ratios", async function () {
-      const wBTCAmount = ethers.parseEther("1");
-      const stCOREAmount = ethers.parseEther("10");
+      const wBTCAmount = ethers.parseUnits("1", 8); // 1 wBTC (8 decimals)
+      const stCOREAmount = ethers.parseEther("10"); // 10 stCORE (18 decimals)
 
       await wBTC.connect(user1).approve(vault.getAddress(), wBTCAmount);
       await stCORE.connect(user1).approve(vault.getAddress(), stCOREAmount);
@@ -150,7 +151,7 @@ describe("New Vault System", function () {
     });
 
     it("Should revert if deposit is below minimum", async function () {
-      const smallAmount = ethers.parseEther("0.0001"); // Very small amount
+      const smallAmount = ethers.parseUnits("0.0001", 8); // Very small wBTC amount (8 decimals)
 
       await wBTC.connect(user1).approve(vault.getAddress(), smallAmount);
 
@@ -163,8 +164,8 @@ describe("New Vault System", function () {
   describe("Redemptions", function () {
     beforeEach(async function () {
       // Set up a deposit first
-      const wBTCAmount = ethers.parseEther("1");
-      const stCOREAmount = ethers.parseEther("10");
+      const wBTCAmount = ethers.parseUnits("1", 8); // 1 wBTC (8 decimals)
+      const stCOREAmount = ethers.parseEther("10"); // 10 stCORE (18 decimals)
 
       await wBTC.connect(user1).approve(vault.getAddress(), wBTCAmount);
       await stCORE.connect(user1).approve(vault.getAddress(), stCOREAmount);
@@ -215,8 +216,8 @@ describe("New Vault System", function () {
   describe("Yield Distribution", function () {
     beforeEach(async function () {
       // Set up deposits from multiple users
-      const wBTCAmount = ethers.parseEther("1");
-      const stCOREAmount = ethers.parseEther("10");
+      const wBTCAmount = ethers.parseUnits("1", 8); // 1 wBTC (8 decimals)
+      const stCOREAmount = ethers.parseEther("10"); // 10 stCORE (18 decimals)
 
       // User1 deposit
       await wBTC.connect(user1).approve(vault.getAddress(), wBTCAmount);
@@ -265,7 +266,7 @@ describe("New Vault System", function () {
     });
 
     it("Should inject and distribute BTC yield correctly", async function () {
-      const yieldAmount = ethers.parseUnits("0.1", 18); // 0.1 BTC yield
+      const yieldAmount = ethers.parseUnits("0.1", 8); // 0.1 wBTC yield (8 decimals)
 
       // Mint wBTC to operator (simulate earned yield)
       await wBTC.mint(operator.address, yieldAmount);
@@ -340,8 +341,8 @@ describe("New Vault System", function () {
 
   describe("View Functions", function () {
     beforeEach(async function () {
-      const wBTCAmount = ethers.parseEther("1");
-      const stCOREAmount = ethers.parseEther("10");
+      const wBTCAmount = ethers.parseUnits("1", 8); // 1 wBTC (8 decimals)
+      const stCOREAmount = ethers.parseEther("10"); // 10 stCORE (18 decimals)
 
       await wBTC.connect(user1).approve(vault.getAddress(), wBTCAmount);
       await stCORE.connect(user1).approve(vault.getAddress(), stCOREAmount);

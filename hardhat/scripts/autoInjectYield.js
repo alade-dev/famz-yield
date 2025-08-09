@@ -13,15 +13,15 @@ async function main() {
   console.log(`🎯 Operator: ${operator.address}`);
   console.log(`🔗 Network: ${(await ethers.provider.getNetwork()).name}`);
 
-  const LSTBTC_ADDRESS = "0xLstBTCNew";
+  const LSTBTC_ADDRESS = "0xLstBTC";
   const CUSTODIAN_ADDRESS = "0xCustodian";
   const WBTC_ADDRESS = "0xMockWBTC";
-  const VAULT_ADDRESS = "0xVaultNew";
+  const VAULT_ADDRESS = "0xVault";
 
   const wbtc = await ethers.getContractAt("IERC20", WBTC_ADDRESS);
   const custodian = await ethers.getContractAt("Custodian", CUSTODIAN_ADDRESS);
-  const lstbtc = await ethers.getContractAt("LstBTCNew", LSTBTC_ADDRESS);
-  const vaultNew = await ethers.getContractAt("VaultNew", VAULT_ADDRESS);
+  const lstbtc = await ethers.getContractAt("LstBTC", LSTBTC_ADDRESS);
+  const vault = await ethers.getContractAt("Vault", VAULT_ADDRESS);
 
   const APY = 0.02; // 2% APY
   const SECONDS_PER_YEAR = 31536000;
@@ -69,7 +69,7 @@ async function main() {
   // Emit event in Vault
   console.log("🔔 Notifying Vault of yield...");
   try {
-    const tx = await vaultNew.connect(operator).notifyYield(weeklyYield);
+    const tx = await vault.connect(operator).notifyYield(weeklyYield);
     await tx.wait();
     console.log(`✅ Vault notified: ${tx.hash}`);
   } catch (error) {
