@@ -1,11 +1,11 @@
 import { createConfig, http } from "wagmi";
-import { mainnet, sepolia } from "wagmi/chains";
+import { mainnet, sepolia, coreTestnet2 } from "wagmi/chains";
 import { metaMask, walletConnect, injected } from "wagmi/connectors";
 
 const projectId = "your-project-id"; // This would be from WalletConnect Cloud
 
 export const config = createConfig({
-  chains: [mainnet, sepolia],
+  chains: [mainnet, sepolia, coreTestnet2],
   connectors: [
     metaMask(),
     walletConnect({
@@ -22,5 +22,6 @@ export const config = createConfig({
   transports: {
     [mainnet.id]: http(),
     [sepolia.id]: http(),
+    [coreTestnet2.id]: http(),
   },
 });
