@@ -27,6 +27,7 @@ import { Progress } from "@/components/ui/progress";
 import { BitcoinIcon } from "@/components/icons/BitcoinIcon";
 import { CoreIcon } from "@/components/icons/CoreIcon";
 import { Badge } from "@/components/ui/badge";
+import { simulateDeposit } from "@/scripts";
 
 const Vaults = () => {
   const { toast } = useToast();
@@ -215,7 +216,7 @@ const Vaults = () => {
     };
   }, [lastPriceUpdate]);
 
-  const handleProceed = () => {
+  const handleProceed = async () => {
     if (mode === "deposit") {
       // Validate amounts are not empty for deposit
       if (!btcAmount.trim() && !coreAmount.trim()) {
@@ -240,6 +241,9 @@ const Vaults = () => {
 
     // Validate amounts are numbers and positive
     if (mode === "deposit") {
+      const result = await simulateDeposit(btcAmount, coreAmount);
+      console.log("result", result);
+
       if (
         (btcAmount && (isNaN(btcValue) || btcValue < 0)) ||
         (coreAmount && (isNaN(coreValue) || coreValue < 0))

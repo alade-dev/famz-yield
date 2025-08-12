@@ -1,5 +1,5 @@
 import { createConfig, http } from "wagmi";
-import { mainnet, sepolia } from "wagmi/chains";
+import { mainnet, sepolia, coreTestnet2 } from "wagmi/chains";
 import { metaMask, walletConnect, injected } from "wagmi/connectors";
 import { defineChain } from "viem";
 
@@ -51,6 +51,7 @@ const coreTestnet2 = defineChain({
 });
 
 export const config = createConfig({
+
   chains: [mainnet, sepolia, coreTestnet2], // Using only coreTestnet2
   connectors: [
     metaMask(),
@@ -69,6 +70,7 @@ export const config = createConfig({
     [mainnet.id]: http(),
     [sepolia.id]: http(),
     [coreTestnet2.id]: http("https://rpc.test2.btcs.network"),
+
   },
 });
 
