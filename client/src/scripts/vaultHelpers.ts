@@ -526,3 +526,141 @@ export const updateOraclePrices = async (
     throw error;
   }
 };
+
+/**
+ * Simulate redeem with comprehensive error checking
+ */
+export const simulateRedeemWithChecks = async (
+  userAddress: Address,
+  lstbtcAmount: string
+) => {
+  try {
+    // Check user's lstBTC balance
+    const lstbtcBalance = await readContract(config, {
+      address: CONTRACT_ADDRESSES[1114].LST_BTC as Address,
+      abi: [
+        {
+          name: "balanceOf",
+          type: "function",
+          stateMutability: "view",
+          inputs: [{ type: "address" }],
+          outputs: [{ type: "uint256" }],
+        },
+      ],
+      functionName: "balanceOf",
+      args: [userAddress],
+    });
+
+    // Check minimum redeem amount
+    const redeemMinAmount = await readContract(config, {
+      address: CONTRACT_ADDRESSES[1114].VAULT as Address,
+      abi: VAULT_ABI,
+      functionName: "redeemMinAmount",
+    });
+
+    const lstbtcAmountBN = parseUnits(lstbtcAmount, 18);
+
+    // Validation checks
+    const issues: string[] = [];
+    if ((lstbtcBalance as bigint) < lstbtcAmountBN) {
+      issues.push(
+        `Insufficient lstBTC balance. Need: ${lstbtcAmount}, Have: ${formatUnits(
+          lstbtcBalance as bigint,
+          18
+        )}`
+      );
+    }
+    if (lstbtcAmountBN < (redeemMinAmount as bigint)) {
+      issues.push(
+        `Amount below minimum redeem. Minimum: ${formatUnits(
+          redeemMinAmount as bigint,
+          18
+        )}`
+      );
+    }
+
+    if (issues.length > 0) {
+      throw new Error(`Redeem requirements not met:\n${issues.join("\n")}`);
+    }
+
+    // Simulate the actual redeem
+    const result = await simulateContract(config, {
+      address: CONTRACT_ADDRESSES[1114].VAULT as Address,
+      abi: VAULT_ABI,
+      functionName: "redeem",
+      args: [lstbtcAmountBN, CONTRACT_ADDRESSES[1114].ST_CORE as Address],
+    });
+
+    return {
+      success: true,
+      result,
+      lstbtcBalance: lstbtcBalance as bigint,
+      redeemMinAmount: redeemMinAmount as bigint,
+    };
+  } catch (error) {
+    console.error("Error simulating redeem:", error);
+    return {
+      success: false,
+      error,
+      lstbtcBalance: null,
+      redeemMinAmount: null,
+    };
+  }
+};
+
+/**
+ * Execute redeem after all checks pass
+ */
+export const executeRedeem = async (lstbtcAmount: string) => {
+  try {
+    const result = await writeContract(config, {
+      address: CONTRACT_ADDRESSES[1114].VAULT as Address,
+      abi: VAULT_ABI,
+      functionName: "redeem",
+      args: [
+        parseUnits(lstbtcAmount, 18),
+        CONTRACT_ADDRESSES[1114].ST_CORE as Address,
+      ],
+    });
+
+    return result;
+  } catch (error) {
+    console.error("Error executing redeem:", error);
+    throw error;
+  }
+};
+
+/**
+ * Calculate what user will receive from redeeming lstBTC
+ */
+export const calculateRedeemOutput = async (
+  userAddress: Address,
+  lstbtcAmount: string
+) => {
+  try {
+    // Get user's ratios from the vault
+    const ratios = (await readContract(config, {
+      address: CONTRACT_ADDRESSES[1114].VAULT as Address,
+      abi: VAULT_ABI,
+      functionName: "getUserRatios",
+      args: [userAddress],
+    })) as [bigint, bigint];
+
+    const [r_wBTC, r_stCORE] = ratios;
+    const lstbtcAmountBN = parseUnits(lstbtcAmount, 18);
+
+    // Calculate what user gets back based on their deposit ratios
+    const wbtcToReceive = (lstbtcAmountBN * r_wBTC) / BigInt(1e18);
+    const stcoreToReceive = (lstbtcAmountBN * r_stCORE) / BigInt(1e18);
+
+    return {
+      wbtcAmount: formatUnits(wbtcToReceive, 8), // wBTC has 8 decimals
+      stcoreAmount: formatUnits(stcoreToReceive, 18), // stCORE has 18 decimals
+      wbtcAmountRaw: wbtcToReceive,
+      stcoreAmountRaw: stcoreToReceive,
+    };
+  } catch (error) {
+    console.error("Error calculating redeem output:", error);
+    throw error;
+  }
+};

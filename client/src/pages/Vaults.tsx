@@ -31,6 +31,9 @@ import {
   executeDeposit,
   getOraclePrices,
   calculateLstBTCFromDeposit,
+  simulateRedeemWithChecks,
+  calculateRedeemOutput,
+  executeRedeem as executeVaultRedeem,
 } from "@/scripts/vaultHelpers";
 import { btcPriceCache } from "@/scripts/priceApi";
 import TransactionSuccessModal from "@/components/TransactionSuccessModal";
@@ -65,6 +68,12 @@ const Vaults = () => {
   const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successTxHash, setSuccessTxHash] = useState<string>("");
+  const [redeemPreview, setRedeemPreview] = useState<{
+    wbtcToReceive: number;
+    stcoreToReceive: number;
+    totalValue: number;
+  } | null>(null);
+  const [redeemPreviewLoading, setRedeemPreviewLoading] = useState(false);
 
   // Price management state
   const [prices, setPrices] = useState({
@@ -121,6 +130,66 @@ const Vaults = () => {
       setPriceLoading(false);
     }
   }, []);
+
+  const fetchRedeemPreview = useCallback(
+    async (lstbtcToRedeem: number) => {
+      if (!address || lstbtcToRedeem <= 0) {
+        setRedeemPreview(null);
+        return;
+      }
+
+      setRedeemPreviewLoading(true);
+      try {
+        // Try to get blockchain data first
+        const redeemOutput = await calculateRedeemOutput(
+          address,
+          lstbtcToRedeem.toString()
+        );
+        const totalValue =
+          parseFloat(redeemOutput.wbtcAmount) * prices.wbtc +
+          parseFloat(redeemOutput.stcoreAmount) * prices.stcore;
+
+        setRedeemPreview({
+          wbtcToReceive: parseFloat(redeemOutput.wbtcAmount),
+          stcoreToReceive: parseFloat(redeemOutput.stcoreAmount),
+          totalValue,
+        });
+      } catch (error) {
+        console.error("Error fetching redeem preview from blockchain:", error);
+
+        // Fallback to local calculation
+        let remainingLstbtc = lstbtcToRedeem;
+        let totalWbtcToReceive = 0;
+        let totalStcoreToReceive = 0;
+
+        for (const position of positions) {
+          if (remainingLstbtc <= 0 || position.lstbtcGenerated <= 0) continue;
+
+          const redeemFromThisPosition = Math.min(
+            remainingLstbtc,
+            position.lstbtcGenerated
+          );
+          const redeemRatio = redeemFromThisPosition / position.lstbtcGenerated;
+
+          totalWbtcToReceive += position.wbtcDeposited * redeemRatio;
+          totalStcoreToReceive += position.stcoreDeposited * redeemRatio;
+
+          remainingLstbtc -= redeemFromThisPosition;
+        }
+
+        setRedeemPreview({
+          wbtcToReceive: totalWbtcToReceive,
+          stcoreToReceive: totalStcoreToReceive,
+          totalValue:
+            totalWbtcToReceive * prices.wbtc +
+            totalStcoreToReceive * prices.stcore,
+        });
+      } finally {
+        setRedeemPreviewLoading(false);
+      }
+    },
+    [address, prices.wbtc, prices.stcore, positions]
+  );
 
   // Debounced price fetching triggered by user input
   const debouncedFetchPrices = useCallback(() => {
@@ -230,6 +299,15 @@ const Vaults = () => {
     stopPriceInterval,
   ]);
 
+  // Effect to fetch redeem preview when lstBTC amount changes
+  useEffect(() => {
+    if (mode === "redeem" && lstbtcValue > 0) {
+      fetchRedeemPreview(lstbtcValue);
+    } else {
+      setRedeemPreview(null);
+    }
+  }, [mode, lstbtcValue, fetchRedeemPreview]);
+
   // Effect to update timestamp display every second
   useEffect(() => {
     if (lastPriceUpdate > 0) {
@@ -292,7 +370,7 @@ const Vaults = () => {
       }
     }
 
-    // Validate sufficient balance for deposit
+    // Validate sufficient balance
     if (mode === "deposit") {
       if (btcValue > wbtcBalance) {
         toast({
@@ -310,6 +388,20 @@ const Vaults = () => {
         });
         return;
       }
+    } else {
+      // For redeem, validate against actual lstBTC balance (not local positions)
+      const totalLstbtc = positions.reduce(
+        (sum, p) => sum + p.lstbtcGenerated,
+        0
+      );
+      if (lstbtcValue > totalLstbtc) {
+        toast({
+          title: "Insufficient lstBTC",
+          description: "You don't have enough lstBTC to redeem this amount",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     try {
@@ -322,188 +414,210 @@ const Vaults = () => {
         return;
       }
 
-      toast({
-        title: "Checking Requirements",
-        description: "Validating deposit requirements...",
-      });
-
-      // Use the new helper function to simulate deposit with comprehensive checks
-      // const simulation = await simulateDepositWithChecks(
-      //   address,
-      //   btcAmount || "0",
-      //   coreAmount || "0"
-      // );
-
-      // if (!simulation.success) {
-      //   toast({
-      //     title: "Deposit Requirements Not Met",
-      //     description:
-      //       (simulation.error as Error)?.message || "Unknown error occurred",
-      //     variant: "destructive",
-      //   });
-      //   return;
-      // }
-
-      // console.log("Deposit simulation successful:", simulation.result);
-
-      // Check which tokens need approval
-      const wbtcAmt = btcAmount || "0";
-      const stcoreAmt = coreAmount || "0";
-
-      if (parseFloat(wbtcAmt) > 0 || parseFloat(stcoreAmt) > 0) {
+      if (mode === "deposit") {
+        // ========== DEPOSIT FLOW ==========
         toast({
-          title: "Checking Approvals",
-          description: "Checking current token allowances...",
+          title: "Checking Requirements",
+          description: "Validating deposit requirements...",
         });
 
-        const allowances = await checkAllowances(address, wbtcAmt, stcoreAmt);
-        console.log("Current allowances:", allowances);
+        // Check which tokens need approval
+        const wbtcAmt = btcAmount || "0";
+        const stcoreAmt = coreAmount || "0";
 
-        const approvalResults: Array<{ token: string; txHash: `0x${string}` }> =
-          [];
+        if (parseFloat(wbtcAmt) > 0 || parseFloat(stcoreAmt) > 0) {
+          toast({
+            title: "Checking Approvals",
+            description: "Checking current token allowances...",
+          });
 
-        // Approve wBTC if needed
-        if (allowances.wbtcNeedsApproval) {
-          try {
+          const allowances = await checkAllowances(address, wbtcAmt, stcoreAmt);
+          console.log("Current allowances:", allowances);
+
+          const approvalResults: Array<{
+            token: string;
+            txHash: `0x${string}`;
+          }> = [];
+
+          // Approve wBTC if needed
+          if (allowances.wbtcNeedsApproval) {
+            try {
+              toast({
+                title: "Approve wBTC",
+                description: `Please approve ${wbtcAmt} wBTC spending in your wallet...`,
+              });
+
+              const wbtcTx = await approveWBTC(wbtcAmt);
+              approvalResults.push({ token: "wBTC", txHash: wbtcTx });
+
+              toast({
+                title: "wBTC Approved",
+                description: `wBTC approval transaction: ${wbtcTx}`,
+              });
+            } catch (wbtcError) {
+              console.error("wBTC approval failed:", wbtcError);
+              toast({
+                title: "wBTC Approval Failed",
+                description:
+                  (wbtcError as Error)?.message || "Failed to approve wBTC",
+                variant: "destructive",
+              });
+              return;
+            }
+          }
+
+          // Approve stCORE if needed
+          if (allowances.stcoreNeedsApproval) {
+            try {
+              toast({
+                title: "Approve stCORE",
+                description: `Please approve ${stcoreAmt} stCORE spending in your wallet...`,
+              });
+
+              const stcoreTx = await approveStCORE(stcoreAmt);
+              approvalResults.push({ token: "stCORE", txHash: stcoreTx });
+
+              toast({
+                title: "stCORE Approved",
+                description: `stCORE approval transaction: ${stcoreTx}`,
+              });
+            } catch (stcoreError) {
+              console.error("stCORE approval failed:", stcoreError);
+              toast({
+                title: "stCORE Approval Failed",
+                description:
+                  (stcoreError as Error)?.message || "Failed to approve stCORE",
+                variant: "destructive",
+              });
+              return;
+            }
+          }
+
+          if (approvalResults.length > 0) {
             toast({
-              title: "Approve wBTC",
-              description: `Please approve ${wbtcAmt} wBTC spending in your wallet...`,
+              title: "All Approvals Complete",
+              description: `Approved ${approvalResults.length} token(s). Now executing deposit...`,
             });
-
-            const wbtcTx = await approveWBTC(wbtcAmt);
-            approvalResults.push({ token: "wBTC", txHash: wbtcTx });
-
+          } else {
             toast({
-              title: "wBTC Approved",
-              description: `wBTC approval transaction: ${wbtcTx}`,
-            });
-          } catch (wbtcError) {
-            console.error("wBTC approval failed:", wbtcError);
-            toast({
-              title: "wBTC Approval Failed",
+              title: "No Approvals Needed",
               description:
-                (wbtcError as Error)?.message || "Failed to approve wBTC",
-              variant: "destructive",
+                "Tokens already approved. Proceeding with deposit...",
             });
-            return;
           }
         }
 
-        // Approve stCORE if needed
-        if (allowances.stcoreNeedsApproval) {
-          try {
-            toast({
-              title: "Approve stCORE",
-              description: `Please approve ${stcoreAmt} stCORE spending in your wallet...`,
-            });
+        // Execute the actual deposit
+        toast({
+          title: "Executing Deposit",
+          description: "Sending deposit transaction...",
+        });
 
-            const stcoreTx = await approveStCORE(stcoreAmt);
-            approvalResults.push({ token: "stCORE", txHash: stcoreTx });
+        const txHash = await executeDeposit(
+          btcAmount || "0",
+          coreAmount || "0"
+        );
 
-            toast({
-              title: "stCORE Approved",
-              description: `stCORE approval transaction: ${stcoreTx}`,
-            });
-          } catch (stcoreError) {
-            console.error("stCORE approval failed:", stcoreError);
-            toast({
-              title: "stCORE Approval Failed",
-              description:
-                (stcoreError as Error)?.message || "Failed to approve stCORE",
-              variant: "destructive",
-            });
-            return;
-          }
+        console.log("Deposit transaction hash:", txHash);
+
+        // Calculate the actual lstBTC generated using oracle prices
+        const lstBTCResult = await calculateLstBTCFromDeposit(
+          btcAmount || "0",
+          coreAmount || "0"
+        );
+
+        // Add position with actual calculated values
+        addPosition({
+          vaultName: "Famz Vault",
+          wbtcDeposited: btcValue,
+          stcoreDeposited: coreValue,
+          lstbtcGenerated: parseFloat(lstBTCResult.lstBTCAmount),
+          currentValue: calculateTotalValue(),
+          apy: "12.5%",
+        });
+
+        // Clear input fields
+        setBtcAmount("");
+        setCoreAmount("");
+
+        // Show success modal
+        setSuccessTxHash(txHash);
+        setShowSuccessModal(true);
+      } else {
+        // ========== REDEEM FLOW ==========
+        toast({
+          title: "Checking Redeem Requirements",
+          description: "Validating redeem requirements...",
+        });
+
+        // Simulate redeem to check for errors
+        const redeemSimulation = await simulateRedeemWithChecks(
+          address,
+          lstbtcAmount
+        );
+
+        if (!redeemSimulation.success) {
+          toast({
+            title: "Redeem Requirements Not Met",
+            description:
+              (redeemSimulation.error as Error)?.message ||
+              "Unknown error occurred",
+            variant: "destructive",
+          });
+          return;
         }
 
-        if (approvalResults.length > 0) {
-          toast({
-            title: "All Approvals Complete",
-            description: `Approved ${approvalResults.length} token(s). Now executing deposit...`,
-          });
-        } else {
-          toast({
-            title: "No Approvals Needed",
-            description: "Tokens already approved. Proceeding with deposit...",
-          });
-        }
+        console.log("Redeem simulation successful:", redeemSimulation.result);
+
+        // Calculate what user will receive
+        const redeemOutput = await calculateRedeemOutput(address, lstbtcAmount);
+        console.log("User will receive:", redeemOutput);
+
+        // Show confirmation modal with calculated output
+        setShowRedeemModal(true);
       }
-
-      // Execute the actual deposit
-      toast({
-        title: "Executing Deposit",
-        description: "Sending deposit transaction...",
-      });
-
-      const txHash = await executeDeposit(btcAmount || "0", coreAmount || "0");
-
-      console.log("Deposit transaction hash:", txHash);
-
-      // Calculate the actual lstBTC generated using oracle prices
-      const lstBTCResult = await calculateLstBTCFromDeposit(
-        btcAmount || "0",
-        coreAmount || "0"
-      );
-
-      // Add position with actual calculated values
-      addPosition({
-        vaultName: "Famz Vault",
-        wbtcDeposited: btcValue,
-        stcoreDeposited: coreValue,
-        lstbtcGenerated: parseFloat(lstBTCResult.lstBTCAmount),
-        currentValue: calculateTotalValue(),
-        apy: "12.5%",
-      });
-
-      // Clear input fields
-      setBtcAmount("");
-      setCoreAmount("");
-
-      // Show success modal instead of toast
-      setSuccessTxHash(txHash);
-      setShowSuccessModal(true);
-
-      return; // Exit early on successful deposit
     } catch (error: unknown) {
-      console.error("Deposit error:", error);
+      console.error(`${mode} error:`, error);
       toast({
-        title: "Deposit Failed",
+        title: `${mode.charAt(0).toUpperCase() + mode.slice(1)} Failed`,
         description:
           (error as Error)?.message || "An unexpected error occurred",
         variant: "destructive",
       });
-      return;
-    }
-
-    // Validate sufficient lstBTC for redeem
-    if (mode === "redeem") {
-      const totalLstbtc = positions.reduce(
-        (sum, p) => sum + p.lstbtcGenerated,
-        0
-      );
-
-      if (lstbtcValue > totalLstbtc) {
-        toast({
-          title: "Insufficient lstBTC",
-          description: "You don't have enough lstBTC to redeem this amount",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // For redeem, show the modal instead of executing directly
-      setShowRedeemModal(true);
-      return;
     }
   };
 
-  // Function to calculate what wBTC and stCORE user gets from redeeming lstBTC (using dynamic prices)
-  const calculateRedeemBreakdown = (lstbtcToRedeem: number) => {
+  // Function to calculate what wBTC and stCORE user gets from redeeming lstBTC
+  const calculateRedeemBreakdown = async (lstbtcToRedeem: number) => {
+    try {
+      if (address) {
+        // Use blockchain data for accurate calculation
+        const redeemOutput = await calculateRedeemOutput(
+          address,
+          lstbtcToRedeem.toString()
+        );
+        const totalValue =
+          parseFloat(redeemOutput.wbtcAmount) * prices.wbtc +
+          parseFloat(redeemOutput.stcoreAmount) * prices.stcore;
+
+        return {
+          wbtcToReceive: parseFloat(redeemOutput.wbtcAmount),
+          stcoreToReceive: parseFloat(redeemOutput.stcoreAmount),
+          totalValue,
+        };
+      }
+    } catch (error) {
+      console.error(
+        "Error calculating redeem breakdown from blockchain:",
+        error
+      );
+    }
+
+    // Fallback to local calculation
     let remainingLstbtc = lstbtcToRedeem;
     let totalWbtcToReceive = 0;
     let totalStcoreToReceive = 0;
 
-    // Process positions to determine proportional redemption
     for (const position of positions) {
       if (remainingLstbtc <= 0 || position.lstbtcGenerated <= 0) continue;
 
@@ -528,75 +642,107 @@ const Vaults = () => {
   };
 
   // Function to execute the redeem operation
-  const executeRedeem = () => {
-    const breakdown = calculateRedeemBreakdown(lstbtcValue);
-
-    // Process positions to actually redeem the lstBTC
-    let remainingLstbtc = lstbtcValue;
-    const positionsToUpdate = [...positions];
-    const positionsToRemove: string[] = [];
-
-    for (let i = 0; i < positionsToUpdate.length && remainingLstbtc > 0; i++) {
-      const position = positionsToUpdate[i];
-      if (position.lstbtcGenerated <= 0) continue;
-
-      const redeemFromThisPosition = Math.min(
-        remainingLstbtc,
-        position.lstbtcGenerated
-      );
-      const redeemRatio = redeemFromThisPosition / position.lstbtcGenerated;
-
-      // Reduce position amounts proportionally
-      position.wbtcDeposited *= 1 - redeemRatio;
-      position.stcoreDeposited *= 1 - redeemRatio;
-      position.lstbtcGenerated *= 1 - redeemRatio;
-      position.currentValue =
-        position.wbtcDeposited * prices.wbtc +
-        position.stcoreDeposited * prices.stcore;
-
-      remainingLstbtc -= redeemFromThisPosition;
-
-      // Mark for removal if fully redeemed
-      if (position.wbtcDeposited < 0.000001 && position.stcoreDeposited < 1) {
-        positionsToRemove.push(position.id);
+  const executeRedeem = async () => {
+    try {
+      if (!address) {
+        toast({
+          title: "Wallet Not Connected",
+          description: "Please connect your wallet",
+          variant: "destructive",
+        });
+        return;
       }
-    }
 
-    // Note: In real implementation, this would trigger blockchain transactions
-    // to transfer redeemed wBTC and stCORE back to user's wallet
-
-    // Update or remove positions
-    const updatedPositions = positionsToUpdate.filter(
-      (p) => !positionsToRemove.includes(p.id)
-    );
-
-    updatedPositions.forEach((position) => {
-      updatePosition(position.id, {
-        wbtcDeposited: position.wbtcDeposited,
-        stcoreDeposited: position.stcoreDeposited,
-        lstbtcGenerated: position.lstbtcGenerated,
-        currentValue: position.currentValue,
+      toast({
+        title: "Executing Redeem",
+        description: "Sending redeem transaction...",
       });
-    });
 
-    positionsToRemove.forEach((positionId) => {
-      removePosition(positionId);
-    });
+      // Execute the blockchain redeem
+      const txHash = await executeVaultRedeem(lstbtcAmount);
+      console.log("Redeem transaction hash:", txHash);
 
-    // Clear input and close modal
-    setLstbtcAmount("");
-    setShowRedeemModal(false);
+      // Get the actual amounts received
+      const redeemOutput = await calculateRedeemOutput(address, lstbtcAmount);
 
-    // Show success message
-    toast({
-      title: "Redeemed Successfully!",
-      description: `Redeemed ${lstbtcValue} lstBTC and received ${breakdown.wbtcToReceive.toFixed(
-        6
-      )} wBTC and ${breakdown.stcoreToReceive.toLocaleString()} stCORE`,
-      variant: "default",
-    });
+      // Update local positions (remove redeemed amount)
+      const breakdown = calculateRedeemBreakdown(lstbtcValue);
+      let remainingLstbtc = lstbtcValue;
+      const positionsToUpdate = [...positions];
+      const positionsToRemove: string[] = [];
 
-    console.log("Redeem completed successfully");
+      for (
+        let i = 0;
+        i < positionsToUpdate.length && remainingLstbtc > 0;
+        i++
+      ) {
+        const position = positionsToUpdate[i];
+        if (position.lstbtcGenerated <= 0) continue;
+
+        const redeemFromThisPosition = Math.min(
+          remainingLstbtc,
+          position.lstbtcGenerated
+        );
+        const redeemRatio = redeemFromThisPosition / position.lstbtcGenerated;
+
+        // Reduce position amounts proportionally
+        position.wbtcDeposited *= 1 - redeemRatio;
+        position.stcoreDeposited *= 1 - redeemRatio;
+        position.lstbtcGenerated *= 1 - redeemRatio;
+        position.currentValue =
+          position.wbtcDeposited * prices.wbtc +
+          position.stcoreDeposited * prices.stcore;
+
+        remainingLstbtc -= redeemFromThisPosition;
+
+        // Mark for removal if fully redeemed
+        if (position.wbtcDeposited < 0.000001 && position.stcoreDeposited < 1) {
+          positionsToRemove.push(position.id);
+        }
+      }
+
+      // Update or remove positions
+      const updatedPositions = positionsToUpdate.filter(
+        (p) => !positionsToRemove.includes(p.id)
+      );
+
+      updatedPositions.forEach((position) => {
+        updatePosition(position.id, {
+          wbtcDeposited: position.wbtcDeposited,
+          stcoreDeposited: position.stcoreDeposited,
+          lstbtcGenerated: position.lstbtcGenerated,
+          currentValue: position.currentValue,
+        });
+      });
+
+      positionsToRemove.forEach((positionId) => {
+        removePosition(positionId);
+      });
+
+      // Clear input and close modal
+      setLstbtcAmount("");
+      setShowRedeemModal(false);
+
+      // Show success message with actual amounts from blockchain
+      toast({
+        title: "Redeemed Successfully!",
+        description: `Transaction: ${txHash}. Received ${parseFloat(
+          redeemOutput.wbtcAmount
+        ).toFixed(6)} wBTC and ${parseFloat(
+          redeemOutput.stcoreAmount
+        ).toLocaleString()} stCORE`,
+        variant: "default",
+      });
+
+      console.log("Redeem completed successfully");
+    } catch (error) {
+      console.error("Redeem execution failed:", error);
+      toast({
+        title: "Redeem Failed",
+        description: (error as Error)?.message || "Failed to execute redeem",
+        variant: "destructive",
+      });
+    }
   };
 
   // Helper function to handle unstaking (partial withdrawal)
@@ -995,22 +1141,31 @@ const Vaults = () => {
                     <p className="text-sm text-muted-foreground mb-2">
                       You will receive:
                     </p>
-                    {(() => {
-                      const breakdown = calculateRedeemBreakdown(lstbtcValue);
-                      return (
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium">
-                            {breakdown.wbtcToReceive.toFixed(6)} wBTC
-                          </p>
-                          <p className="text-sm font-medium">
-                            {breakdown.stcoreToReceive.toLocaleString()} stCORE
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            ≈ ${breakdown.totalValue.toLocaleString()} USD
-                          </p>
-                        </div>
-                      );
-                    })()}
+                    {redeemPreviewLoading ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        <span className="text-sm text-muted-foreground">
+                          Calculating...
+                        </span>
+                      </div>
+                    ) : redeemPreview ? (
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">
+                          {redeemPreview.wbtcToReceive.toFixed(6)} wBTC
+                        </p>
+                        <p className="text-sm font-medium">
+                          {redeemPreview.stcoreToReceive.toLocaleString()}{" "}
+                          stCORE
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          ≈ ${redeemPreview.totalValue.toLocaleString()} USD
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Enter amount to see preview
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1092,48 +1247,35 @@ const Vaults = () => {
 
               {/* Redeem Preview */}
               {mode === "redeem" && lstbtcAmount && lstbtcValue > 0 && (
-                <Card className="p-4 mx-4 bg-gradient-primary/10 border-primary/20">
-                  <div className="text-center space-y-3">
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground">lstBTC</p>
-                      <p className="font-bold">{lstbtcAmount}</p>
+                <div className="p-3 bg-muted/50 rounded-lg">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    You will receive:
+                  </p>
+                  {redeemPreviewLoading ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      <span className="text-sm text-muted-foreground">
+                        Calculating...
+                      </span>
                     </div>
-                    <ArrowDown className="w-6 h-6 text-primary mx-auto" />
+                  ) : redeemPreview ? (
                     <div className="space-y-1">
-                      <div className="text-center">
-                        <p className="text-sm text-muted-foreground">
-                          Will Receive
-                        </p>
-                        {(() => {
-                          const breakdown =
-                            calculateRedeemBreakdown(lstbtcValue);
-                          return (
-                            <div className="space-y-1">
-                              <p className="text-lg font-bold text-gold">
-                                {breakdown.wbtcToReceive.toFixed(6)} wBTC
-                              </p>
-                              <p className="text-lg font-bold text-gold">
-                                {breakdown.stcoreToReceive.toLocaleString()}{" "}
-                                stCORE
-                              </p>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                      <div className="text-center">
-                        <p className="text-xs text-muted-foreground">
-                          ≈ $
-                          {(() => {
-                            const breakdown =
-                              calculateRedeemBreakdown(lstbtcValue);
-                            return breakdown.totalValue.toLocaleString();
-                          })()}{" "}
-                          USD
-                        </p>
-                      </div>
+                      <p className="text-sm font-medium">
+                        {redeemPreview.wbtcToReceive.toFixed(6)} wBTC
+                      </p>
+                      <p className="text-sm font-medium">
+                        {redeemPreview.stcoreToReceive.toLocaleString()} stCORE
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        ≈ ${redeemPreview.totalValue.toLocaleString()} USD
+                      </p>
                     </div>
-                  </div>
-                </Card>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Enter amount to see preview
+                    </p>
+                  )}
+                </div>
               )}
 
               <div className="p-6 space-y-6">
@@ -1384,48 +1526,39 @@ const Vaults = () => {
               <ArrowDown className="w-6 h-6 text-primary" />
             </div>
 
-            {/* Receive Breakdown */}
-            <div className="space-y-4">
-              <div className="text-sm text-muted-foreground text-center">
-                You will receive
-              </div>
-
-              {(() => {
-                const breakdown = calculateRedeemBreakdown(lstbtcValue);
-                return (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <BitcoinIcon size="sm" />
-                        <span className="font-medium">wBTC</span>
-                      </div>
-                      <span className="font-bold">
-                        {breakdown.wbtcToReceive.toFixed(6)}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <CoreIcon size="sm" />
-                        <span className="font-medium">stCORE</span>
-                      </div>
-                      <span className="font-bold">
-                        {breakdown.stcoreToReceive.toLocaleString()}
-                      </span>
-                    </div>
-
-                    <div className="text-center">
-                      <div className="text-xs text-muted-foreground">
-                        Total Value
-                      </div>
-                      <div className="text-lg font-bold text-gold">
-                        ≈ ${breakdown.totalValue.toLocaleString()} USD
-                      </div>
-                    </div>
+            {/* Redeem Preview in Modal */}
+            {redeemPreview && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <BitcoinIcon size="sm" />
+                    <span className="font-medium">wBTC</span>
                   </div>
-                );
-              })()}
-            </div>
+                  <span className="font-bold">
+                    {redeemPreview.wbtcToReceive.toFixed(6)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <CoreIcon size="sm" />
+                    <span className="font-medium">stCORE</span>
+                  </div>
+                  <span className="font-bold">
+                    {redeemPreview.stcoreToReceive.toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground">
+                    Total Value
+                  </div>
+                  <div className="text-lg font-bold text-gold">
+                    ≈ ${redeemPreview.totalValue.toLocaleString()} USD
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex space-x-3">
