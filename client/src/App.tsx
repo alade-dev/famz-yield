@@ -8,6 +8,7 @@ import { WagmiProvider } from "wagmi";
 import { config } from "./config/wagmi";
 import { VaultProvider } from "./contexts/VaultContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { TokenBalanceProvider } from "./contexts/TokenBalanceContext";
 import Navigation from "./components/Navigation";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
@@ -65,13 +66,15 @@ const App = () => (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <ThemeProvider>
-          <VaultProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <AppContent />
-            </BrowserRouter>
-          </VaultProvider>
+          <TokenBalanceProvider>
+            <VaultProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <AppContent />
+              </BrowserRouter>
+            </VaultProvider>
+          </TokenBalanceProvider>
         </ThemeProvider>
       </TooltipProvider>
     </QueryClientProvider>
