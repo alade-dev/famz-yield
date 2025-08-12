@@ -1,0 +1,61 @@
+/**
+ * Global CSS for Docusaurus styling overrides
+ * Refined with modern, professional color palette
+ */
+
+/* Light Mode Theme */
+:root {
+  --ifm-color-primary: #4a6cf7; /* Modern blue */
+  --ifm-color-primary-dark: #3f5bd6;
+  --ifm-color-primary-darker: #374eb8;
+  --ifm-color-primary-darkest: #2b3e94;
+  --ifm-color-primary-light: #5d7ef9;
+  --ifm-color-primary-lighter: #6e8ffb;
+  --ifm-color-primary-lightest: #8aa7fc;
+
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(74, 108, 247, 0.08);
+}
+
+/* Dark Mode Theme */
+[data-theme="dark"] {
+  --ifm-color-primary: #7baaff; /* Softer blue for dark mode */
+  --ifm-color-primary-dark: #6b99f0;
+  --ifm-color-primary-darker: #5b87db;
+  --ifm-color-primary-darkest: #4a72b9;
+  --ifm-color-primary-light: #8cb8ff;
+  --ifm-color-primary-lighter: #9cc3ff;
+  --ifm-color-primary-lightest: #aecfff;
+
+  --docusaurus-highlighted-code-line-bg: rgba(123, 170, 255, 0.15);
+}
+
+/* Warning Box */
+.warning {
+  margin-top: 2rem;
+  padding: 1rem 1.25rem;
+  background-color: #fff7e6;
+  border: 1px solid #ffd591;
+  border-radius: 10px;
+  color: #8c6d1f;
+  text-align: center;
+  font-size: 0.95rem;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.05);
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.warning:hover {
+  background-color: #fff3d9;
+  transform: translateY(-2px);
+}
+
+/* Feature SVG Styling */
+.featureSvg {
+  margin: 0 auto 1rem;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.08));
+  transition: transform 0.3s ease;
+}
+
+.featureSvg:hover {
+  transform: scale(1.05);
+}
