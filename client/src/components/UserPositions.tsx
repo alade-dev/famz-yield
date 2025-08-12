@@ -134,30 +134,34 @@ const UserPositions = ({ limit }: UserPositionsProps) => {
                   lstBTC Generated
                 </p>
                 <p className="font-medium text-gold">
-                  {position.lstbtcGenerated.toFixed(4)}
+                  {position.lstbtcGenerated.toFixed(6)}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Current Value</p>
-                <p className="font-medium">${position.currentValue}</p>
+                <p className="font-medium">
+                  ${position.currentValue.toFixed(2)}
+                </p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Total Earnings</p>
-                <p className="font-medium text-gold">${position.earnings}</p>
+                <p className="font-medium text-gold">
+                  ${position.earnings.toFixed(2)}
+                </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">wBTC Earnings</p>
                 <p className="font-medium text-gold">
-                  +{position.wbtcEarnings}
+                  +{position.wbtcEarnings.toFixed(6)}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">stCORE Earnings</p>
                 <p className="font-medium text-gold">
-                  +{position.stcoreEarnings}
+                  +{position.stcoreEarnings.toFixed(4)}
                 </p>
               </div>
             </div>
