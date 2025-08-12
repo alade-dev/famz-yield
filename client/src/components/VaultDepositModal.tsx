@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { ArrowRight, ArrowDown, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useVault } from "@/contexts/VaultContext";
+import { useTokenBalanceContext } from "@/contexts/TokenBalanceContext";
 import { BitcoinIcon } from "@/components/icons/BitcoinIcon";
 import { CoreIcon } from "@/components/icons/CoreIcon";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
@@ -34,7 +35,8 @@ const VaultDepositModal = ({
   const [stcoreAmount, setStcoreAmount] = useState<string>("");
   const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
-  const { addPosition, userBalances, setUserBalances, positions } = useVault();
+  const { addPosition } = useVault();
+  const { getFormattedBalance } = useTokenBalanceContext();
   const { requireWalletConnection } = useWalletConnection();
 
   // Calculate expected lstBTC based on inputs
@@ -79,34 +81,34 @@ const VaultDepositModal = ({
       });
       return;
     }
-
     // Check if user has sufficient balance
-    if (wbtcNum > userBalances.wbtc) {
+    const wbtcBalance = parseFloat(getFormattedBalance("wBTC"));
+    const stcoreBalance = parseFloat(getFormattedBalance("stCORE"));
+
+    if (wbtcNum > wbtcBalance) {
       toast({
         title: "Insufficient wBTC Balance",
         description: `You need ${wbtcNum.toFixed(
           6
-        )} wBTC but only have ${userBalances.wbtc.toFixed(6)} wBTC available`,
+        )} wBTC but only have ${wbtcBalance.toFixed(6)} wBTC available`,
         variant: "destructive",
       });
       return;
     }
 
-    if (stcoreNum > userBalances.stcore) {
+    if (stcoreNum > stcoreBalance) {
       toast({
         title: "Insufficient stCORE Balance",
-        description: `You need ${stcoreNum.toLocaleString()} stCORE but only have ${userBalances.stcore.toLocaleString()} stCORE available`,
+        description: `You need ${stcoreNum.toLocaleString()} stCORE but only have ${stcoreBalance.toFixed(
+          4
+        )} stCORE available`,
         variant: "destructive",
       });
       return;
     }
 
-    // Deduct amounts from user balances
-    setUserBalances((prev) => ({
-      ...prev,
-      wbtc: prev.wbtc - wbtcNum,
-      stcore: prev.stcore - stcoreNum,
-    }));
+    // Note: In real implementation, this would trigger blockchain transactions
+    // to transfer wBTC and stCORE to the vault contract
 
     // Add position to user's portfolio
     addPosition({
@@ -173,7 +175,7 @@ const VaultDepositModal = ({
                 </div>
               </div>
               <div className="text-xs text-muted-foreground">
-                Available: {userBalances.wbtc.toFixed(6)} wBTC
+                Available: {getFormattedBalance("wBTC")} wBTC
               </div>
             </div>
 
@@ -202,7 +204,7 @@ const VaultDepositModal = ({
                 </div>
               </div>
               <div className="text-xs text-muted-foreground">
-                Available: {userBalances.stcore.toLocaleString()} stCORE
+                Available: {getFormattedBalance("stCORE")} stCORE
               </div>
             </div>
           </div>

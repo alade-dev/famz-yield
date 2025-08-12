@@ -20,6 +20,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import UserPositions from "@/components/UserPositions";
 import { useVault } from "@/contexts/VaultContext";
+import { useTokenBalanceContext } from "@/contexts/TokenBalanceContext";
 
 import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
@@ -34,11 +35,13 @@ const Vaults = () => {
     updatePosition,
     removePosition,
     positions,
-    userBalances,
-    setUserBalances,
+    canDeposit,
+    getAvailableBalance,
     isWalletConnected,
     isDataLoaded,
   } = useVault();
+
+  const { getFormattedBalance } = useTokenBalanceContext();
 
   const [mode, setMode] = useState<"deposit" | "redeem">("deposit");
   const [btcAmount, setBtcAmount] = useState("");
@@ -135,12 +138,13 @@ const Vaults = () => {
   const lstbtcValue = Math.max(0, parseFloat(lstbtcAmount) || 0);
 
   // Calculate boost multipliers based on percentage of available balance used
+  const wbtcBalance = parseFloat(getFormattedBalance("wBTC"));
+  const stcoreBalance = parseFloat(getFormattedBalance("stCORE"));
+
   const btcBoost =
-    userBalances.wbtc > 0 ? Math.min(btcValue / userBalances.wbtc, 1) * 2 : 0; // Max 4x boost
+    wbtcBalance > 0 ? Math.min(btcValue / wbtcBalance, 1) * 2 : 0; // Max 4x boost
   const coreBoost =
-    userBalances.stcore > 0
-      ? Math.min(coreValue / userBalances.stcore, 1) * 2
-      : 0; // Max 4x boost
+    stcoreBalance > 0 ? Math.min(coreValue / stcoreBalance, 1) * 2 : 0; // Max 4x boost
 
   // Calculate expected lstBTC based on inputs (using dynamic prices)
   const calculateLstBtc = () => {
@@ -260,7 +264,7 @@ const Vaults = () => {
 
     // Validate sufficient balance for deposit
     if (mode === "deposit") {
-      if (btcValue > userBalances.wbtc) {
+      if (btcValue > wbtcBalance) {
         toast({
           title: "Insufficient wBTC Balance",
           description: "You don't have enough wBTC to deposit this amount",
@@ -268,7 +272,7 @@ const Vaults = () => {
         });
         return;
       }
-      if (coreValue > userBalances.stcore) {
+      if (coreValue > stcoreBalance) {
         toast({
           title: "Insufficient stCORE Balance",
           description: "You don't have enough stCORE to deposit this amount",
@@ -304,12 +308,8 @@ const Vaults = () => {
       // DEPOSIT LOGIC
       console.log("Executing deposit operation:", { btcValue, coreValue });
 
-      // Deduct from user balances
-      setUserBalances((prev) => ({
-        ...prev,
-        wbtc: prev.wbtc - btcValue,
-        stcore: prev.stcore - coreValue,
-      }));
+      // Note: In real implementation, this would trigger blockchain transactions
+      // to transfer wBTC and stCORE to the vault contract
 
       // Add new position (using dynamic prices)
       addPosition({
@@ -409,12 +409,8 @@ const Vaults = () => {
       }
     }
 
-    // Update user balances with redeemed amounts
-    setUserBalances((prev) => ({
-      ...prev,
-      wbtc: prev.wbtc + breakdown.wbtcToReceive,
-      stcore: prev.stcore + breakdown.stcoreToReceive,
-    }));
+    // Note: In real implementation, this would trigger blockchain transactions
+    // to transfer redeemed wBTC and stCORE back to user's wallet
 
     // Update or remove positions
     const updatedPositions = positionsToUpdate.filter(
@@ -499,12 +495,8 @@ const Vaults = () => {
       }
     }
 
-    // Update user balances (return the unstaked amounts)
-    setUserBalances((prev) => ({
-      ...prev,
-      wbtc: prev.wbtc + (btcToUnstake - remainingBtc),
-      stcore: prev.stcore + (coreToUnstake - remainingCore),
-    }));
+    // Note: In real implementation, this would trigger blockchain transactions
+    // to return unstaked wBTC and stCORE to user's wallet
 
     // Apply position updates and removals using VaultContext methods
     const updatedPositions = positionsToUpdate.filter(
@@ -574,8 +566,8 @@ const Vaults = () => {
   );
 
   // Max values based on mode
-  const maxBtc = mode === "deposit" ? userBalances.wbtc : 0;
-  const maxCore = mode === "deposit" ? userBalances.stcore : 0;
+  const maxBtc = mode === "deposit" ? wbtcBalance : 0;
+  const maxCore = mode === "deposit" ? stcoreBalance : 0;
   const maxLstbtc =
     mode === "redeem"
       ? positions.reduce((sum, p) => sum + p.lstbtcGenerated, 0)
@@ -672,7 +664,7 @@ const Vaults = () => {
                     </Button>
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Available: {userBalances.wbtc.toFixed(6)} wBTC</span>
+                    <span>Available: {getFormattedBalance("wBTC")} wBTC</span>
                     <div className="flex items-center space-x-1">
                       {priceLoading && (
                         <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
@@ -749,7 +741,7 @@ const Vaults = () => {
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>
-                      Available: {userBalances.stcore.toLocaleString()} stCORE
+                      Available: {getFormattedBalance("stCORE")} stCORE
                     </span>
                     <div className="flex items-center space-x-1">
                       {priceLoading && (
@@ -1050,8 +1042,8 @@ const Vaults = () => {
                       <div className="flex items-center justify-between">
                         <Label className="text-sm">wBTC Staked</Label>
                         <Badge variant="outline">
-                          {userBalances.wbtc > 0
-                            ? `${((btcValue / userBalances.wbtc) * 100).toFixed(
+                          {wbtcBalance > 0
+                            ? `${((btcValue / wbtcBalance) * 100).toFixed(
                                 0
                               )}% (${btcBoost.toFixed(1)}x boost)`
                             : "0% (0x boost)"}
@@ -1060,33 +1052,28 @@ const Vaults = () => {
                       <div className="relative">
                         <div className="flex justify-between text-xs text-muted-foreground mb-1">
                           <span>
-                            {userBalances.wbtc > 0
-                              ? (userBalances.wbtc * 0.25).toFixed(3)
+                            {wbtcBalance > 0
+                              ? (wbtcBalance * 0.25).toFixed(3)
                               : "0"}
                           </span>
                           <span>
-                            {userBalances.wbtc > 0
-                              ? (userBalances.wbtc * 0.5).toFixed(3)
+                            {wbtcBalance > 0
+                              ? (wbtcBalance * 0.5).toFixed(3)
                               : "0"}
                           </span>
                           <span>
-                            {userBalances.wbtc > 0
-                              ? (userBalances.wbtc * 0.75).toFixed(3)
+                            {wbtcBalance > 0
+                              ? (wbtcBalance * 0.75).toFixed(3)
                               : "0"}
                           </span>
                           <span>
-                            {userBalances.wbtc > 0
-                              ? userBalances.wbtc.toFixed(3)
-                              : "0"}
+                            {wbtcBalance > 0 ? wbtcBalance.toFixed(3) : "0"}
                           </span>
                         </div>
                         <Slider
                           value={[
-                            userBalances.wbtc > 0
-                              ? Math.min(
-                                  (btcValue / userBalances.wbtc) * 100,
-                                  100
-                                )
+                            wbtcBalance > 0
+                              ? Math.min((btcValue / wbtcBalance) * 100, 100)
                               : 0,
                           ]}
                           max={100}
@@ -1110,44 +1097,40 @@ const Vaults = () => {
                       <div className="flex items-center justify-between">
                         <Label className="text-sm">stCORE Staked</Label>
                         <Badge variant="outline">
-                          {userBalances.stcore > 0
-                            ? `${(
-                                (coreValue / userBalances.stcore) *
-                                100
-                              ).toFixed(0)}% (${coreBoost.toFixed(1)}x boost)`
+                          {stcoreBalance > 0
+                            ? `${((coreValue / stcoreBalance) * 100).toFixed(
+                                0
+                              )}% (${coreBoost.toFixed(1)}x boost)`
                             : "0% (0x boost)"}
                         </Badge>
                       </div>
                       <div className="relative">
                         <div className="flex justify-between text-xs text-muted-foreground  mb-1">
                           <span>
-                            {userBalances.stcore > 0
-                              ? Math.round(userBalances.stcore * 0.25)
+                            {stcoreBalance > 0
+                              ? Math.round(stcoreBalance * 0.25)
                               : "0"}
                           </span>
                           <span>
-                            {userBalances.stcore > 0
-                              ? Math.round(userBalances.stcore * 0.5)
+                            {stcoreBalance > 0
+                              ? Math.round(stcoreBalance * 0.5)
                               : "0"}
                           </span>
                           <span>
-                            {userBalances.stcore > 0
-                              ? Math.round(userBalances.stcore * 0.75)
+                            {stcoreBalance > 0
+                              ? Math.round(stcoreBalance * 0.75)
                               : "0"}
                           </span>
                           <span>
-                            {userBalances.stcore > 0
-                              ? Math.round(userBalances.stcore)
+                            {stcoreBalance > 0
+                              ? Math.round(stcoreBalance)
                               : "0"}
                           </span>
                         </div>
                         <Slider
                           value={[
-                            userBalances.stcore > 0
-                              ? Math.min(
-                                  (coreValue / userBalances.stcore) * 100,
-                                  100
-                                )
+                            stcoreBalance > 0
+                              ? Math.min((coreValue / stcoreBalance) * 100, 100)
                               : 0,
                           ]}
                           max={100}

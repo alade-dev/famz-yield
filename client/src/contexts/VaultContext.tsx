@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, {
   createContext,
   useContext,
@@ -8,6 +9,7 @@ import React, {
 } from "react";
 import { useAccount } from "wagmi";
 import { useSecureStorage } from "@/lib/secureStorage";
+import { useTokenBalanceContext } from "./TokenBalanceContext";
 
 interface VaultPosition {
   id: string;
@@ -54,21 +56,16 @@ interface VaultContextType {
   getTotalDeposited: () => number;
   getTotalEarnings: () => number;
   getTotalValue: () => number;
-  userBalances: { btc: number; core: number; wbtc: number; stcore: number };
-  setUserBalances: React.Dispatch<
-    React.SetStateAction<{
-      btc: number;
-      core: number;
-      wbtc: number;
-      stcore: number;
-    }>
-  >;
+  // Remove hardcoded userBalances - now comes from TokenBalanceContext
   closeVault: (id: string) => void;
   earningsHistory: EarningsHistory[];
   getTotalWbtcEarnings: () => number;
   getTotalStcoreEarnings: () => number;
   isWalletConnected: boolean;
   isDataLoaded: boolean;
+  // Add methods to check if user has sufficient balance for deposits
+  canDeposit: (wbtcAmount: number, stcoreAmount: number) => boolean;
+  getAvailableBalance: (symbol: string) => string;
 }
 
 const VaultContext = createContext<VaultContextType | undefined>(undefined);
@@ -80,13 +77,14 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
   const { getSecureItem, setSecureItem, isWalletConnected } =
     useSecureStorage();
 
+  // Get real token balances from TokenBalanceContext
+  const {
+    getFormattedBalance,
+    getTokenBySymbol,
+    isConnected: tokenContextConnected,
+  } = useTokenBalanceContext();
+
   const [positions, setPositions] = useState<VaultPosition[]>([]);
-  const [userBalances, setUserBalances] = useState<{
-    btc: number;
-    core: number;
-    wbtc: number;
-    stcore: number;
-  }>({ btc: 1.0, core: 10000, wbtc: 0, stcore: 0 });
   const [earningsHistory, setEarningsHistory] = useState<EarningsHistory[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
@@ -120,7 +118,26 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     lstbtcValue: 0,
   };
 
-  const expectedUserBalances = { btc: 0, core: 0, wbtc: 0, stcore: 0 };
+  // Helper functions for token balance integration
+  const canDeposit = useCallback(
+    (wbtcAmount: number, stcoreAmount: number): boolean => {
+      if (!tokenContextConnected) return false;
+
+      const wbtcBalance = parseFloat(getFormattedBalance("wBTC"));
+      const stcoreBalance = parseFloat(getFormattedBalance("stCORE"));
+
+      return wbtcBalance >= wbtcAmount && stcoreBalance >= stcoreAmount;
+    },
+    [tokenContextConnected, getFormattedBalance]
+  );
+
+  const getAvailableBalance = useCallback(
+    (symbol: string): string => {
+      if (!tokenContextConnected) return "0";
+      return getFormattedBalance(symbol);
+    },
+    [tokenContextConnected, getFormattedBalance]
+  );
 
   // Memoized updateEarnings function to prevent infinite loops
   const updateEarnings = useCallback(() => {
@@ -234,22 +251,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         [expectedVaultPosition]
       );
 
-      // Load balances with validation and migration
-      const loadedBalances = getSecureItem(
-        "userBalances",
-        { btc: 1.0, core: 10000, wbtc: 0, stcore: 0 }, // Default balances for new users
-        expectedUserBalances
-      );
-
-      // Migrate old balance format to new format if needed
-      const migratedBalances = {
-        btc: typeof loadedBalances.btc === "number" ? loadedBalances.btc : 1.0,
-        core:
-          typeof loadedBalances.core === "number" ? loadedBalances.core : 10000,
-        wbtc: typeof loadedBalances.wbtc === "number" ? loadedBalances.wbtc : 0,
-        stcore:
-          typeof loadedBalances.stcore === "number" ? loadedBalances.stcore : 0,
-      };
+      // Note: User balances are now fetched from TokenBalanceContext
 
       // Load earnings history with validation
       const loadedEarningsHistory = getSecureItem<EarningsHistory[]>(
@@ -259,20 +261,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
       );
 
       setPositions(loadedPositions);
-      setUserBalances(migratedBalances);
       setEarningsHistory(loadedEarningsHistory);
-
-      // Save migrated balances back to storage if migration occurred
-      if (
-        typeof loadedBalances.btc !== "number" ||
-        typeof loadedBalances.core !== "number"
-      ) {
-        setSecureItem("userBalances", migratedBalances);
-        console.log("Migrated user balances to new format", {
-          old: loadedBalances,
-          new: migratedBalances,
-        });
-      }
       setIsDataLoaded(true);
 
       // Show migration success message if data was migrated
@@ -282,7 +271,6 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     } else {
       // Clear data when wallet disconnects
       setPositions([]);
-      setUserBalances({ btc: 0, core: 0, wbtc: 0, stcore: 0 });
       setEarningsHistory([]);
       setIsDataLoaded(false);
     }
@@ -301,16 +289,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [positions, isConnected, address, isDataLoaded, setSecureItem]);
 
-  // Save balances to secure storage whenever they change (only if wallet connected)
-  useEffect(() => {
-    if (isConnected && address && isDataLoaded) {
-      const timeoutId = setTimeout(() => {
-        setSecureItem("userBalances", userBalances);
-      }, 1000); // Debounce saves by 1 second
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [userBalances, isConnected, address, isDataLoaded, setSecureItem]);
+  // Note: User balances are now managed by TokenBalanceContext
 
   // Save earnings history to secure storage whenever it changes (only if wallet connected)
   useEffect(() => {
@@ -515,12 +494,8 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         };
         setEarningsHistory((prev) => [...prev, earningRecord]);
 
-        // Credit user with original deposits plus earnings from lstBTC
-        setUserBalances((bal) => ({
-          ...bal,
-          wbtc: bal.wbtc + pos.wbtcDeposited + pos.wbtcEarnings,
-          stcore: bal.stcore + pos.stcoreDeposited + pos.stcoreEarnings,
-        }));
+        // Note: When vault is closed, tokens are returned to user's actual wallet
+        // The TokenBalanceContext will automatically reflect the updated balances
 
         return prev.filter((p) => p.id !== id);
       });
@@ -539,14 +514,14 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         getTotalDeposited,
         getTotalEarnings,
         getTotalValue,
-        userBalances,
-        setUserBalances,
         closeVault,
         earningsHistory,
         getTotalWbtcEarnings,
         getTotalStcoreEarnings,
         isWalletConnected,
         isDataLoaded,
+        canDeposit,
+        getAvailableBalance,
       }}
     >
       {children}

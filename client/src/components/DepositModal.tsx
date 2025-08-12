@@ -28,9 +28,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import React from "react";
 import { useVault } from "@/contexts/VaultContext";
+import { useTokenBalanceContext } from "@/contexts/TokenBalanceContext";
 import { BitcoinIcon } from "@/components/icons/BitcoinIcon";
 import { CoreIcon } from "@/components/icons/CoreIcon";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
+import DepositValidation from "@/components/DepositValidation";
 
 interface DepositModalProps {
   children: React.ReactNode;
@@ -57,36 +59,66 @@ const DepositModal = ({
   React.useEffect(() => {
     if (isOpen) setTab(initialTab);
   }, [isOpen, initialTab]);
+
   const { toast } = useToast();
-  const { userBalances, setUserBalances, positions } = useVault();
+  const { canDeposit, getAvailableBalance } = useVault();
+  const { getFormattedBalance, isConnected: tokenContextConnected } =
+    useTokenBalanceContext();
   const { requireWalletConnection } = useWalletConnection();
 
-  const tokens = [
+  const allTokens = [
     {
       symbol: "BTC",
       name: "Bitcoin",
-      balance:
-        tab === "stake"
-          ? userBalances.btc.toFixed(6) // Show BTC balance when converting BTC→wBTC
-          : userBalances.wbtc.toFixed(6), // Show wBTC balance when converting wBTC→BTC
+      balance: "0.000000", // Always show zero since users don't have regular BTC
       apy: "8.2%",
       icon: <BitcoinIcon size="sm" />,
       stakedSymbol: "wBTC",
       stakedName: "Wrapped Bitcoin",
+      showOnTab: "stake", // Only show on stake/deposit tab
+    },
+    {
+      symbol: "wBTC",
+      name: "Wrapped Bitcoin",
+      balance: parseFloat(getFormattedBalance("wBTC")).toFixed(6), // Show actual wBTC balance
+      apy: "8.2%",
+      icon: <BitcoinIcon size="sm" />,
+      stakedSymbol: "wBTC",
+      stakedName: "Wrapped Bitcoin",
+      showOnTab: "redeem", // Only show on redeem/withdraw tab
     },
     {
       symbol: "CORE",
-      name: "CORE",
+      name: "Test CORE",
       balance:
         tab === "stake"
-          ? userBalances.core.toLocaleString() // Show CORE balance when converting CORE→stCORE
-          : userBalances.stcore.toLocaleString(), // Show stCORE balance when converting stCORE→CORE
+          ? parseFloat(getFormattedBalance("tCORE")).toFixed(4) // Format tCORE to 4dp
+          : parseFloat(getFormattedBalance("stCORE")).toFixed(4), // Format stCORE to 4dp
       apy: "12.5%",
       icon: <CoreIcon size="sm" />,
       stakedSymbol: "stCORE",
       stakedName: "Staked CORE",
+      showOnTab: "both", // Show on both tabs
     },
   ];
+
+  // Filter tokens based on current tab
+  const tokens = allTokens.filter(
+    (token) => token.showOnTab === "both" || token.showOnTab === tab
+  );
+
+  // Clear selected token when switching tabs (since BTC/wBTC are tab-specific)
+  React.useEffect(() => {
+    if (selectedToken === "BTC" && tab === "redeem") {
+      // BTC is only available on stake tab
+      setSelectedToken("");
+      setAmount("");
+    } else if (selectedToken === "wBTC" && tab === "stake") {
+      // wBTC is only available on redeem tab
+      setSelectedToken("");
+      setAmount("");
+    }
+  }, [tab, selectedToken]);
 
   const selectedTokenData = tokens.find(
     (token) => token.symbol === selectedToken
@@ -208,23 +240,26 @@ const DepositModal = ({
                     size="sm"
                     className="h-6 px-2 text-xs"
                     onClick={() => {
-                      // Get raw balance value to avoid parseFloat issues with comma-formatted strings
-                      let rawBalance = 0;
+                      // Get raw balance value from real token balances
+                      let balanceString = "";
                       if (selectedToken === "BTC") {
-                        rawBalance =
-                          tab === "stake"
-                            ? userBalances.btc
-                            : userBalances.wbtc;
+                        balanceString = "0"; // BTC is always 0
+                      } else if (selectedToken === "wBTC") {
+                        balanceString = getFormattedBalance("wBTC");
                       } else if (selectedToken === "CORE") {
-                        rawBalance =
+                        balanceString =
                           tab === "stake"
-                            ? userBalances.core
-                            : userBalances.stcore;
+                            ? getFormattedBalance("tCORE")
+                            : getFormattedBalance("stCORE");
                       }
+
+                      const rawBalance = parseFloat(balanceString);
                       setAmount(
                         selectedToken === "BTC"
-                          ? (rawBalance / 2).toFixed(6)
-                          : (rawBalance / 2).toFixed(2)
+                          ? "0.000000"
+                          : selectedToken === "wBTC"
+                          ? (rawBalance / 2).toFixed(6) // Format wBTC to 6dp
+                          : (rawBalance / 2).toFixed(4) // Format CORE to 4dp
                       );
                     }}
                   >
@@ -235,23 +270,26 @@ const DepositModal = ({
                     size="sm"
                     className="h-6 px-2 text-xs"
                     onClick={() => {
-                      // Get raw balance value for max
-                      let rawBalance = 0;
+                      // Get raw balance value for max from real token balances
+                      let balanceString = "";
                       if (selectedToken === "BTC") {
-                        rawBalance =
-                          tab === "stake"
-                            ? userBalances.btc
-                            : userBalances.wbtc;
+                        balanceString = "0"; // BTC is always 0
+                      } else if (selectedToken === "wBTC") {
+                        balanceString = getFormattedBalance("wBTC");
                       } else if (selectedToken === "CORE") {
-                        rawBalance =
+                        balanceString =
                           tab === "stake"
-                            ? userBalances.core
-                            : userBalances.stcore;
+                            ? getFormattedBalance("tCORE")
+                            : getFormattedBalance("stCORE");
                       }
+
+                      const rawBalance = parseFloat(balanceString);
                       setAmount(
                         selectedToken === "BTC"
-                          ? rawBalance.toFixed(6)
-                          : rawBalance.toFixed(2)
+                          ? "0.000000"
+                          : selectedToken === "wBTC"
+                          ? rawBalance.toFixed(6) // Format wBTC to 6dp
+                          : rawBalance.toFixed(4) // Format CORE to 4dp
                       );
                     }}
                   >
@@ -291,9 +329,24 @@ const DepositModal = ({
               </div>
             </Card>
           )}
+
+          {/* Deposit Validation */}
+          {selectedTokenData && amount && tokenContextConnected && (
+            <DepositValidation
+              wbtcAmount={
+                selectedToken === "BTC" || selectedToken === "wBTC"
+                  ? parseFloat(amount)
+                  : 0
+              }
+              stcoreAmount={selectedToken === "CORE" ? parseFloat(amount) : 0}
+              className="mt-4"
+            />
+          )}
+
           {/* Action Button */}
           <Button
             className="w-full mt-4"
+            disabled={true} // Disabled since deposit/withdraw functionality not implemented
             onClick={() => {
               // Check wallet connection first
               if (
@@ -319,44 +372,48 @@ const DepositModal = ({
               const amountNum = parseFloat(amount);
 
               if (tab === "stake") {
-                // Check if user has enough balance to convert
-                const availableBalance =
+                // Check if user has enough balance to convert using real balances
+                const availableBalanceString =
                   selectedToken === "BTC"
-                    ? userBalances.btc
-                    : userBalances.core;
+                    ? "0" // BTC is always 0
+                    : selectedToken === "wBTC"
+                    ? getFormattedBalance("wBTC") // wBTC deposits use wBTC balance
+                    : getFormattedBalance("tCORE"); // CORE staking uses tCORE balance
+
+                const availableBalance = parseFloat(availableBalanceString);
                 if (amountNum > availableBalance) {
                   toast({
                     title: "Insufficient Balance",
-                    description: `You don't have enough ${selectedToken} to convert`,
+                    description: `You don't have enough ${
+                      selectedToken === "BTC"
+                        ? "BTC"
+                        : selectedToken === "wBTC"
+                        ? "wBTC"
+                        : "tCORE"
+                    } to deposit`,
                     variant: "destructive",
                   });
                   return;
                 }
 
-                // Convert BTC→wBTC or CORE→stCORE
-                setUserBalances((prev) => ({
-                  ...prev,
-                  ...(selectedToken === "BTC"
-                    ? {
-                        btc: prev.btc - amountNum,
-                        wbtc: prev.wbtc + amountNum,
-                      }
-                    : {
-                        core: prev.core - amountNum,
-                        stcore: prev.stcore + amountNum,
-                      }),
-                }));
-
+                // Note: In a real implementation, this would trigger blockchain transactions
+                // For now, we'll show a demo message
                 toast({
-                  title: "Conversion Successful",
-                  description: `Converted ${amount} ${selectedToken} to ${selectedTokenData?.stakedSymbol}`,
+                  title: "Demo Mode - Deposit Simulated",
+                  description: `Would deposit ${amount} ${selectedToken} ${
+                    selectedToken === "CORE" ? "(staking tCORE→stCORE)" : ""
+                  }. Real implementation would trigger blockchain transaction.`,
                 });
               } else {
-                // For redeem, check if user has enough wrapped tokens to convert back
-                const availableBalance =
+                // For redeem, check if user has enough tokens to withdraw
+                const availableBalanceString =
                   selectedToken === "BTC"
-                    ? userBalances.wbtc
-                    : userBalances.stcore;
+                    ? "0" // BTC is always 0
+                    : selectedToken === "wBTC"
+                    ? getFormattedBalance("wBTC") // wBTC withdrawals use wBTC balance
+                    : getFormattedBalance("stCORE"); // CORE withdrawals use stCORE balance
+
+                const availableBalance = parseFloat(availableBalanceString);
                 if (amountNum > availableBalance) {
                   toast({
                     title: "Insufficient Balance",
@@ -366,23 +423,13 @@ const DepositModal = ({
                   return;
                 }
 
-                // Convert wBTC→BTC or stCORE→CORE
-                setUserBalances((prev) => ({
-                  ...prev,
-                  ...(selectedToken === "BTC"
-                    ? {
-                        wbtc: prev.wbtc - amountNum,
-                        btc: prev.btc + amountNum,
-                      }
-                    : {
-                        stcore: prev.stcore - amountNum,
-                        core: prev.core + amountNum,
-                      }),
-                }));
-
+                // Note: In a real implementation, this would trigger blockchain transactions
+                // For now, we'll show a demo message
                 toast({
-                  title: "Conversion Successful",
-                  description: `Converted ${amount} ${selectedTokenData?.stakedSymbol} to ${selectedToken}`,
+                  title: "Demo Mode - Withdrawal Simulated",
+                  description: `Would withdraw ${amount} ${selectedToken} ${
+                    selectedToken === "CORE" ? "(unstaking stCORE→tCORE)" : ""
+                  }. Real implementation would trigger blockchain transaction.`,
                 });
               }
               setIsOpen(false);
@@ -390,7 +437,9 @@ const DepositModal = ({
               setSelectedToken("");
             }}
           >
-            {tab === "stake" ? "Deposit" : "Withdraw"}
+            {tab === "stake"
+              ? "Deposit (Coming Soon)"
+              : "Withdraw (Coming Soon)"}
           </Button>
         </div>
       </DialogContent>

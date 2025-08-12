@@ -18,7 +18,9 @@ import { BitcoinIcon } from "@/components/icons/BitcoinIcon";
 import { CoreIcon } from "@/components/icons/CoreIcon";
 import VaultCreationCard from "@/components/VaultCreationCard";
 import UserPositions from "@/components/UserPositions";
+import TokenBalances from "@/components/TokenBalances";
 import { useVault } from "@/contexts/VaultContext";
+import { useTokenBalanceContext } from "@/contexts/TokenBalanceContext";
 import { useState } from "react";
 
 const Dashboard = () => {
@@ -26,12 +28,16 @@ const Dashboard = () => {
     getTotalDeposited,
     getTotalValue,
     positions,
-    userBalances,
     getTotalWbtcEarnings,
     getTotalStcoreEarnings,
     isWalletConnected,
     isDataLoaded,
+    canDeposit,
+    getAvailableBalance,
   } = useVault();
+
+  // Get real token balances
+  const { tokens, getFormattedBalance, hasTokens } = useTokenBalanceContext();
 
   const totalDeposited = getTotalDeposited();
   const totalValue = getTotalValue();
@@ -202,7 +208,7 @@ const Dashboard = () => {
                           <span className="text-sm">wBTC</span>
                         </div>
                         <span className="text-sm font-medium">
-                          {userBalances.wbtc.toFixed(6)}
+                          {getFormattedBalance("wBTC")}
                         </span>
                       </div>
                       <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
@@ -211,7 +217,7 @@ const Dashboard = () => {
                           <span className="text-sm">stCORE</span>
                         </div>
                         <span className="text-sm font-medium">
-                          {userBalances.stcore.toLocaleString()}
+                          {getFormattedBalance("stCORE")}
                         </span>
                       </div>
                     </div>
@@ -354,6 +360,9 @@ const Dashboard = () => {
           )}
         </Card>
       </div>
+
+      {/* Token Balances */}
+      <TokenBalances />
 
       {/* Quick Actions */}
       <Card className="bg-gradient-vault border-vault-border">
