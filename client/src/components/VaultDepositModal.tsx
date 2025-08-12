@@ -14,6 +14,11 @@ import { ArrowRight, ArrowDown, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useVault } from "@/contexts/VaultContext";
 import { useTokenBalanceContext } from "@/contexts/TokenBalanceContext";
+import {
+  calculateLstBTCFromDeposit,
+  getOraclePrices,
+} from "@/scripts/vaultHelpers";
+import { btcPriceCache } from "@/scripts/priceApi";
 import { BitcoinIcon } from "@/components/icons/BitcoinIcon";
 import { CoreIcon } from "@/components/icons/CoreIcon";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
@@ -43,19 +48,46 @@ const VaultDepositModal = ({
   const calculateLstBtc = () => {
     const wbtc = parseFloat(wbtcAmount) || 0;
     const stcore = parseFloat(stcoreAmount) || 0;
-    // Simplified calculation: wBTC is worth more, stCORE contributes less
+
+    if (wbtc === 0 && stcore === 0) return "0.000000";
+
+    // Simplified calculation for UI preview - actual calculation uses oracle prices
     return (wbtc * 0.95 + stcore * 0.0001).toFixed(6);
   };
 
-  // Calculate total USD value (rough estimation)
-  const calculateTotalValue = () => {
+  // Calculate total USD value using oracle prices
+  const calculateTotalValue = async () => {
     const wbtc = parseFloat(wbtcAmount) || 0;
     const stcore = parseFloat(stcoreAmount) || 0;
-    // Rough USD values: wBTC ~$43,000, stCORE ~$1
-    return wbtc * 43000 + stcore * 1;
+
+    if (wbtc === 0 && stcore === 0) return 0;
+
+    try {
+      // Get real prices from both oracle and external APIs
+      const [oraclePrices, btcUsdPrice] = await Promise.all([
+        getOraclePrices(),
+        btcPriceCache.getPrice(),
+      ]);
+
+      const stCOREPrice = parseFloat(oraclePrices.stCOREPrice);
+      const coreBTCPrice = parseFloat(oraclePrices.coreBTCPrice);
+
+      // Convert to USD using real BTC price
+      const coreUsdPrice = coreBTCPrice * btcUsdPrice;
+      const stcoreUsdPrice = stCOREPrice * coreUsdPrice;
+
+      return wbtc * btcUsdPrice + stcore * stcoreUsdPrice;
+    } catch (error) {
+      console.error(
+        "Error fetching oracle prices for value calculation:",
+        error
+      );
+      // Fallback to rough estimates
+      return wbtc * 43000 + stcore * 1.42;
+    }
   };
 
-  const handleDeposit = () => {
+  const handleDeposit = async () => {
     // Check wallet connection first
     if (!requireWalletConnection("deposit to this vault")) {
       return;
@@ -108,17 +140,40 @@ const VaultDepositModal = ({
     }
 
     // Note: In real implementation, this would trigger blockchain transactions
-    // to transfer wBTC and stCORE to the vault contract
+    // to transfer wBTC and stCORE to the vault contract and use actual oracle prices
 
-    // Add position to user's portfolio
-    addPosition({
-      vaultName,
-      wbtcDeposited: wbtcNum,
-      stcoreDeposited: stcoreNum,
-      lstbtcGenerated: parseFloat(calculateLstBtc()),
-      currentValue: calculateTotalValue(),
-      apy: apy,
-    });
+    try {
+      // Calculate actual lstBTC using oracle prices
+      const lstBTCResult = await calculateLstBTCFromDeposit(
+        wbtcAmount,
+        stcoreAmount
+      );
+
+      // Calculate current value using oracle prices
+      const currentValue = await calculateTotalValue();
+
+      // Add position to user's portfolio with actual calculated values
+      addPosition({
+        vaultName,
+        wbtcDeposited: wbtcNum,
+        stcoreDeposited: stcoreNum,
+        lstbtcGenerated: parseFloat(lstBTCResult.lstBTCAmount),
+        currentValue: currentValue,
+        apy: apy,
+      });
+    } catch (error) {
+      console.error("Error calculating lstBTC:", error);
+      // Fallback to simplified calculation if oracle fails
+      const fallbackValue = wbtcNum * 43000 + stcoreNum * 1.42; // Fallback USD calculation
+      addPosition({
+        vaultName,
+        wbtcDeposited: wbtcNum,
+        stcoreDeposited: stcoreNum,
+        lstbtcGenerated: parseFloat(calculateLstBtc()),
+        currentValue: fallbackValue,
+        apy: apy,
+      });
+    }
 
     toast({
       title: "Deposit Successful!",

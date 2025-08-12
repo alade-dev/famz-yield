@@ -24,7 +24,7 @@ const CONTRACTS = {
 export const simulateDeposit = async (
   wbtcAmount,
   stcoreAmount,
-  lstToken = CONTRACTS.LSTBTC
+  stToken = CONTRACTS.STCORE
 ) => {
   try {
     const result = await simulateContract(config, {
@@ -34,7 +34,7 @@ export const simulateDeposit = async (
       args: [
         parseUnits(wbtcAmount.toString(), 8),
         parseUnits(stcoreAmount.toString(), 18),
-        lstToken,
+        stToken,
       ],
     });
     return result;
@@ -45,7 +45,11 @@ export const simulateDeposit = async (
 };
 
 // Execute deposit transaction
-export const deposit = async (wbtcAmount, stcoreAmount, lstToken) => {
+export const deposit = async (
+  wbtcAmount,
+  stcoreAmount,
+  stToken = CONTRACTS.STCORE
+) => {
   try {
     const result = await writeContract(config, {
       address: CONTRACTS.VAULT as Address,
@@ -54,7 +58,7 @@ export const deposit = async (wbtcAmount, stcoreAmount, lstToken) => {
       args: [
         parseUnits(wbtcAmount.toString(), 8),
         parseUnits(stcoreAmount.toString(), 18),
-        lstToken,
+        stToken,
       ],
     });
     return result;

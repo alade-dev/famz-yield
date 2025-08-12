@@ -18,9 +18,22 @@ import {
   ArrowDown,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAccount } from "wagmi";
 import UserPositions from "@/components/UserPositions";
 import { useVault } from "@/contexts/VaultContext";
 import { useTokenBalanceContext } from "@/contexts/TokenBalanceContext";
+import {
+  simulateDepositWithChecks,
+  approveTokens,
+  approveWBTC,
+  approveStCORE,
+  checkAllowances,
+  executeDeposit,
+  getOraclePrices,
+  calculateLstBTCFromDeposit,
+} from "@/scripts/vaultHelpers";
+import { btcPriceCache } from "@/scripts/priceApi";
+import TransactionSuccessModal from "@/components/TransactionSuccessModal";
 
 import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
@@ -31,6 +44,7 @@ import { simulateDeposit } from "@/scripts";
 
 const Vaults = () => {
   const { toast } = useToast();
+  const { address } = useAccount();
   const {
     addPosition,
     updatePosition,
@@ -49,6 +63,8 @@ const Vaults = () => {
   const [coreAmount, setCoreAmount] = useState("");
   const [lstbtcAmount, setLstbtcAmount] = useState("");
   const [showRedeemModal, setShowRedeemModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successTxHash, setSuccessTxHash] = useState<string>("");
 
   // Price management state
   const [prices, setPrices] = useState({
@@ -66,34 +82,41 @@ const Vaults = () => {
   // State for live timestamp updates
   const [, forceUpdate] = useState({});
 
-  // Mock API function to fetch prices
+  // Fetch prices from oracle
   const fetchPrices = useCallback(async () => {
     setPriceLoading(true);
     try {
-      // Simulate API call with realistic price fluctuations
-      await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate network delay
+      // Fetch real prices from both oracle and external APIs
+      const [oraclePrices, btcUsdPrice] = await Promise.all([
+        getOraclePrices(),
+        btcPriceCache.getPrice(),
+      ]);
 
-      // TODO: Get prices from API
-      const baseWbtcPrice = 114750;
-      const baseStcorePrice = 0.49;
+      // Convert oracle prices to USD values for display
+      // Note: Oracle gives us stCORE/CORE and CORE/BTC ratios
+      const stCOREPrice = parseFloat(oraclePrices.stCOREPrice); // stCORE/CORE ratio
+      const coreBTCPrice = parseFloat(oraclePrices.coreBTCPrice); // CORE/BTC ratio
 
-      // Add realistic price fluctuations (±2% for wBTC, ±5% for stCORE)
-      const wbtcFluctuation = (Math.random() - 0.5) * 0.00004; // ±0.000004
-      const stcoreFluctuation = (Math.random() - 0.5) * 0.01; // ±0.000001
+      // Calculate USD values using real BTC price
+      // const coreUsdPrice = coreBTCPrice * btcUsdPrice; // CORE price in USD
+      const stcoreUsdPrice = stCOREPrice; // stCORE price in USD
 
       const newPrices = {
-        wbtc: Math.round(baseWbtcPrice * (1 + wbtcFluctuation)),
-        stcore: parseFloat(
-          (baseStcorePrice * (1 + stcoreFluctuation)).toFixed(6)
-        ),
+        wbtc: Math.round(btcUsdPrice), // wBTC ≈ BTC price
+        stcore: parseFloat(stcoreUsdPrice.toFixed(6)),
       };
 
       setPrices(newPrices);
       setLastPriceUpdate(Date.now());
 
-      console.log("Prices updated:", newPrices);
+      console.log("Oracle prices fetched:", {
+        realBTCPrice: `$${btcUsdPrice.toLocaleString()}`,
+        stCOREPrice: oraclePrices.stCOREPrice,
+        coreBTCPrice: oraclePrices.coreBTCPrice,
+        calculatedUSDPrices: newPrices,
+      });
     } catch (error) {
-      console.error("Failed to fetch prices:", error);
+      console.error("Failed to fetch oracle prices:", error);
     } finally {
       setPriceLoading(false);
     }
@@ -109,6 +132,7 @@ const Vaults = () => {
     // Set new debounce timeout (500ms delay)
     debounceTimeoutRef.current = setTimeout(() => {
       fetchPrices();
+      btcPriceCache.refresh();
     }, 500);
   }, [fetchPrices]);
 
@@ -122,6 +146,7 @@ const Vaults = () => {
     // Start new 15-second interval
     priceIntervalRef.current = setInterval(() => {
       fetchPrices();
+      btcPriceCache.refresh();
     }, 15000); // 15 seconds
   }, [fetchPrices]);
 
@@ -147,11 +172,15 @@ const Vaults = () => {
   const coreBoost =
     stcoreBalance > 0 ? Math.min(coreValue / stcoreBalance, 1) * 2 : 0; // Max 4x boost
 
-  // Calculate expected lstBTC based on inputs (using dynamic prices)
+  // Calculate expected lstBTC based on inputs using oracle prices
   const calculateLstBtc = () => {
     const wbtc = parseFloat(btcAmount) || 0;
     const stcore = parseFloat(coreAmount) || 0;
-    // Simplified calculation: wBTC is worth more, stCORE contributes less
+
+    if (wbtc === 0 && stcore === 0) return "0.000000";
+
+    // Use a simplified version for UI display - the actual calculation happens in the contract
+    // This is just for preview purposes
     return (wbtc * 0.95 + stcore * 0.0001).toFixed(6);
   };
 
@@ -241,9 +270,6 @@ const Vaults = () => {
 
     // Validate amounts are numbers and positive
     if (mode === "deposit") {
-      const result = await simulateDeposit(btcAmount, coreAmount);
-      console.log("result", result);
-
       if (
         (btcAmount && (isNaN(btcValue) || btcValue < 0)) ||
         (coreAmount && (isNaN(coreValue) || coreValue < 0))
@@ -286,6 +312,169 @@ const Vaults = () => {
       }
     }
 
+    try {
+      if (!address) {
+        toast({
+          title: "Wallet Not Connected",
+          description: "Please connect your wallet to proceed",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Checking Requirements",
+        description: "Validating deposit requirements...",
+      });
+
+      // Use the new helper function to simulate deposit with comprehensive checks
+      // const simulation = await simulateDepositWithChecks(
+      //   address,
+      //   btcAmount || "0",
+      //   coreAmount || "0"
+      // );
+
+      // if (!simulation.success) {
+      //   toast({
+      //     title: "Deposit Requirements Not Met",
+      //     description:
+      //       (simulation.error as Error)?.message || "Unknown error occurred",
+      //     variant: "destructive",
+      //   });
+      //   return;
+      // }
+
+      // console.log("Deposit simulation successful:", simulation.result);
+
+      // Check which tokens need approval
+      const wbtcAmt = btcAmount || "0";
+      const stcoreAmt = coreAmount || "0";
+
+      if (parseFloat(wbtcAmt) > 0 || parseFloat(stcoreAmt) > 0) {
+        toast({
+          title: "Checking Approvals",
+          description: "Checking current token allowances...",
+        });
+
+        const allowances = await checkAllowances(address, wbtcAmt, stcoreAmt);
+        console.log("Current allowances:", allowances);
+
+        const approvalResults: Array<{ token: string; txHash: `0x${string}` }> =
+          [];
+
+        // Approve wBTC if needed
+        if (allowances.wbtcNeedsApproval) {
+          try {
+            toast({
+              title: "Approve wBTC",
+              description: `Please approve ${wbtcAmt} wBTC spending in your wallet...`,
+            });
+
+            const wbtcTx = await approveWBTC(wbtcAmt);
+            approvalResults.push({ token: "wBTC", txHash: wbtcTx });
+
+            toast({
+              title: "wBTC Approved",
+              description: `wBTC approval transaction: ${wbtcTx}`,
+            });
+          } catch (wbtcError) {
+            console.error("wBTC approval failed:", wbtcError);
+            toast({
+              title: "wBTC Approval Failed",
+              description:
+                (wbtcError as Error)?.message || "Failed to approve wBTC",
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+
+        // Approve stCORE if needed
+        if (allowances.stcoreNeedsApproval) {
+          try {
+            toast({
+              title: "Approve stCORE",
+              description: `Please approve ${stcoreAmt} stCORE spending in your wallet...`,
+            });
+
+            const stcoreTx = await approveStCORE(stcoreAmt);
+            approvalResults.push({ token: "stCORE", txHash: stcoreTx });
+
+            toast({
+              title: "stCORE Approved",
+              description: `stCORE approval transaction: ${stcoreTx}`,
+            });
+          } catch (stcoreError) {
+            console.error("stCORE approval failed:", stcoreError);
+            toast({
+              title: "stCORE Approval Failed",
+              description:
+                (stcoreError as Error)?.message || "Failed to approve stCORE",
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+
+        if (approvalResults.length > 0) {
+          toast({
+            title: "All Approvals Complete",
+            description: `Approved ${approvalResults.length} token(s). Now executing deposit...`,
+          });
+        } else {
+          toast({
+            title: "No Approvals Needed",
+            description: "Tokens already approved. Proceeding with deposit...",
+          });
+        }
+      }
+
+      // Execute the actual deposit
+      toast({
+        title: "Executing Deposit",
+        description: "Sending deposit transaction...",
+      });
+
+      const txHash = await executeDeposit(btcAmount || "0", coreAmount || "0");
+
+      console.log("Deposit transaction hash:", txHash);
+
+      // Calculate the actual lstBTC generated using oracle prices
+      const lstBTCResult = await calculateLstBTCFromDeposit(
+        btcAmount || "0",
+        coreAmount || "0"
+      );
+
+      // Add position with actual calculated values
+      addPosition({
+        vaultName: "Famz Vault",
+        wbtcDeposited: btcValue,
+        stcoreDeposited: coreValue,
+        lstbtcGenerated: parseFloat(lstBTCResult.lstBTCAmount),
+        currentValue: calculateTotalValue(),
+        apy: "12.5%",
+      });
+
+      // Clear input fields
+      setBtcAmount("");
+      setCoreAmount("");
+
+      // Show success modal instead of toast
+      setSuccessTxHash(txHash);
+      setShowSuccessModal(true);
+
+      return; // Exit early on successful deposit
+    } catch (error: unknown) {
+      console.error("Deposit error:", error);
+      toast({
+        title: "Deposit Failed",
+        description:
+          (error as Error)?.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Validate sufficient lstBTC for redeem
     if (mode === "redeem") {
       const totalLstbtc = positions.reduce(
@@ -305,46 +494,6 @@ const Vaults = () => {
       // For redeem, show the modal instead of executing directly
       setShowRedeemModal(true);
       return;
-    }
-
-    // Execute deposit logic (redeem is handled by modal)
-    if (mode === "deposit") {
-      // DEPOSIT LOGIC
-      console.log("Executing deposit operation:", { btcValue, coreValue });
-
-      // Note: In real implementation, this would trigger blockchain transactions
-      // to transfer wBTC and stCORE to the vault contract
-
-      // Add new position (using dynamic prices)
-      addPosition({
-        vaultName: "Famz Vault",
-        wbtcDeposited: btcValue,
-        stcoreDeposited: coreValue,
-        lstbtcGenerated: parseFloat(calculateLstBtc()),
-        currentValue: calculateTotalValue(), // Already uses dynamic prices
-        apy: "12.5%", // More realistic APY
-      });
-
-      console.log("Deposit completed successfully");
-    }
-
-    // Clear input fields after successful operation (only for deposit)
-    if (mode === "deposit") {
-      setBtcAmount("");
-      setCoreAmount("");
-
-      // Show success message
-      const processedAmounts: string[] = [];
-      if (btcValue > 0) processedAmounts.push(`${btcValue} wBTC`);
-      if (coreValue > 0) processedAmounts.push(`${coreValue} stCORE`);
-
-      toast({
-        title: "Deposited Successfully!",
-        description: `Deposited ${processedAmounts.join(
-          " and "
-        )} and received ${calculateLstBtc()} lstBTC`,
-        variant: "default",
-      });
     }
   };
 
@@ -668,7 +817,10 @@ const Vaults = () => {
                     </Button>
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Available: {getFormattedBalance("wBTC")} wBTC</span>
+                    <span>
+                      Available:{" "}
+                      {parseFloat(getFormattedBalance("wBTC")).toFixed(6)} wBTC
+                    </span>
                     <div className="flex items-center space-x-1">
                       {priceLoading && (
                         <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
@@ -745,7 +897,9 @@ const Vaults = () => {
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>
-                      Available: {getFormattedBalance("stCORE")} stCORE
+                      Available:{" "}
+                      {parseFloat(getFormattedBalance("stCORE")).toFixed(4)}{" "}
+                      stCORE
                     </span>
                     <div className="flex items-center space-x-1">
                       {priceLoading && (
@@ -1289,6 +1443,15 @@ const Vaults = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Transaction Success Modal */}
+      <TransactionSuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        txHash={successTxHash}
+        title="Deposit Completed"
+        description="Your deposit has been successfully processed and lstBTC has been generated!"
+      />
     </div>
   );
 };

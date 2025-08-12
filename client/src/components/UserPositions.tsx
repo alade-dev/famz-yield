@@ -118,7 +118,7 @@ const UserPositions = ({ limit }: UserPositionsProps) => {
               <div>
                 <p className="text-sm text-muted-foreground">wBTC Deposited</p>
                 <p className="font-medium">
-                  {position.wbtcDeposited.toFixed(6)}
+                  {position.wbtcDeposited.toFixed(4)}
                 </p>
               </div>
               <div>
@@ -126,7 +126,7 @@ const UserPositions = ({ limit }: UserPositionsProps) => {
                   stCORE Deposited
                 </p>
                 <p className="font-medium">
-                  {position.stcoreDeposited.toLocaleString()}
+                  {position.stcoreDeposited.toFixed(4)}
                 </p>
               </div>
               <div>
@@ -134,34 +134,30 @@ const UserPositions = ({ limit }: UserPositionsProps) => {
                   lstBTC Generated
                 </p>
                 <p className="font-medium text-gold">
-                  {position.lstbtcGenerated.toFixed(6)}
+                  {position.lstbtcGenerated.toFixed(4)}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Current Value</p>
-                <p className="font-medium">
-                  ${position.currentValue.toLocaleString()}
-                </p>
+                <p className="font-medium">${position.currentValue}</p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Total Earnings</p>
-                <p className="font-medium text-gold">
-                  ${position.earnings.toFixed(2)}
-                </p>
+                <p className="font-medium text-gold">${position.earnings}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">wBTC Earnings</p>
                 <p className="font-medium text-gold">
-                  +{position.wbtcEarnings.toFixed(6)}
+                  +{position.wbtcEarnings}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">stCORE Earnings</p>
                 <p className="font-medium text-gold">
-                  +{position.stcoreEarnings.toFixed(2)}
+                  +{position.stcoreEarnings}
                 </p>
               </div>
             </div>
@@ -177,11 +173,9 @@ const UserPositions = ({ limit }: UserPositionsProps) => {
               <div className="flex items-center space-x-2">
                 <TrendingUp className="w-4 h-4 text-gold" />
                 <span className="text-sm font-medium text-gold">
-                  {(
-                    (position.earnings /
-                      (position.currentValue - position.earnings)) *
-                    100
-                  ).toFixed(2)}
+                  {(position.earnings /
+                    (position.currentValue - position.earnings)) *
+                    100}
                   % gain
                 </span>
               </div>
