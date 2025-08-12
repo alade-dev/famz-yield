@@ -217,7 +217,7 @@ const Dashboard = () => {
                           <span className="text-sm">stCORE</span>
                         </div>
                         <span className="text-sm font-medium">
-                          {getFormattedBalance("stCORE")}
+                          {parseFloat(getFormattedBalance("stCORE")).toFixed(4)}
                         </span>
                       </div>
                     </div>
@@ -244,7 +244,7 @@ const Dashboard = () => {
                           <span className="text-sm">stCORE</span>
                         </div>
                         <span className="text-sm font-medium text-gold">
-                          +{getTotalStcoreEarnings().toFixed(2)}
+                          +{getTotalStcoreEarnings().toFixed(4)}
                         </span>
                       </div>
                     </div>
