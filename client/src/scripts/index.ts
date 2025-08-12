@@ -3,6 +3,7 @@ import { parseUnits, formatUnits, Address } from "viem";
 import { PRICE_ORACLE_ABI } from "./PriceOracle";
 import { VAULT_ABI } from "./Vault";
 import { LSTBTC_ABI } from "./LstBTC";
+import { config } from "@/config/wagmi";
 
 const CONTRACTS = {
   WBTC: "0x546a07F7E5Ec6EAf22201486b4116cF87aE170aa",
@@ -21,7 +22,6 @@ const CONTRACTS = {
 
 // Simulate deposit to check for errors
 export const simulateDeposit = async (
-  config,
   wbtcAmount,
   stcoreAmount,
   lstToken = CONTRACTS.LSTBTC
@@ -45,7 +45,7 @@ export const simulateDeposit = async (
 };
 
 // Execute deposit transaction
-export const deposit = async (config, wbtcAmount, stcoreAmount, lstToken) => {
+export const deposit = async (wbtcAmount, stcoreAmount, lstToken) => {
   try {
     const result = await writeContract(config, {
       address: CONTRACTS.VAULT as Address,
@@ -67,7 +67,7 @@ export const deposit = async (config, wbtcAmount, stcoreAmount, lstToken) => {
 // REDEEM FLOW
 
 // Simulate redeem to check for errors
-export const simulateRedeem = async (config, lstbtcAmount, lstToken) => {
+export const simulateRedeem = async (lstbtcAmount, lstToken) => {
   try {
     const result = await simulateContract(config, {
       address: CONTRACTS.VAULT as Address,
@@ -83,7 +83,7 @@ export const simulateRedeem = async (config, lstbtcAmount, lstToken) => {
 };
 
 // Execute redeem transaction
-export const redeem = async (config, lstbtcAmount, lstToken) => {
+export const redeem = async (lstbtcAmount, lstToken) => {
   try {
     const result = await writeContract(config, {
       address: CONTRACTS.VAULT as Address,
@@ -103,7 +103,7 @@ export const redeem = async (config, lstbtcAmount, lstToken) => {
 // ===========================================
 
 // Get total BTC value in the vault
-export const getTotalBTCValue = async (config) => {
+export const getTotalBTCValue = async () => {
   try {
     const result = await readContract(config, {
       address: CONTRACTS.VAULT as Address,
@@ -118,7 +118,7 @@ export const getTotalBTCValue = async (config) => {
 };
 
 // Get current oracle prices
-export const getCurrentPrices = async (config) => {
+export const getCurrentPrices = async () => {
   try {
     const result = (await readContract(config, {
       address: CONTRACTS.VAULT as Address,
@@ -136,7 +136,7 @@ export const getCurrentPrices = async (config) => {
 };
 
 // Get user's deposit ratios
-export const getUserRatios = async (config, userAddress) => {
+export const getUserRatios = async (userAddress) => {
   try {
     const result = (await readContract(config, {
       address: CONTRACTS.VAULT as Address,
@@ -380,13 +380,9 @@ export const getUserTokenBalances = async (config, userAddress) => {
 };
 
 // Calculate expected lstBTC to mint (using VaultMath logic)
-export const calculateExpectedLstBTC = async (
-  config,
-  wbtcAmount,
-  stcoreAmount
-) => {
+export const calculateExpectedLstBTC = async (wbtcAmount, stcoreAmount) => {
   try {
-    const prices = await getCurrentPrices(config);
+    const prices = await getCurrentPrices();
     const wbtcIn18Decimals = parseFloat(wbtcAmount) * 1e10;
     const stcoreInBTC =
       (parseFloat(stcoreAmount) *
