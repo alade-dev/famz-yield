@@ -33,7 +33,7 @@ const Landing = () => {
 
   const handleDocumentation = (e: React.MouseEvent) => {
     window.open(
-      "https://docs.coredao.org/docs/stake-and-delegate/overview",
+      "https://famz-yield.vercel.app/overview/vision",
       "_blank",
       "noopener,noreferrer"
     );

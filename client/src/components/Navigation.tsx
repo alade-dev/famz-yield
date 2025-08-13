@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { LayoutDashboard, Vault, Menu, X } from "lucide-react";
 import WalletConnect from "./WalletConnect";
 import ThemeToggle from "./ThemeToggle";
+import logo5 from "@/assets/logo5.png";
 
 const Navigation = () => {
   const location = useLocation();
@@ -24,10 +25,10 @@ const Navigation = () => {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <div className="flex items-center space-x-2">
-            <Link to="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
+            <Link to="/" className="flex items-center space-x-1">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center">
                 <span className="text-primary-foreground font-bold text-lg">
-                  F
+                  <img src={logo5} alt="Famz Yield Logo" className="w-9 h-9" />
                 </span>
               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
