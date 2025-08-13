@@ -5,7 +5,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-
+import "./VaultMath.sol";
 import "./LstBTC.sol";
 import "./Custodian.sol";
 
@@ -19,6 +19,7 @@ import "./Custodian.sol";
  */
 contract Vault is Ownable, ReentrancyGuard {
     using Address for address payable;
+    using VaultMath for uint256;
 
     /// @notice Base unit for fee calculations (1e6 = 100%)
     uint256 private constant RATE_BASE = 1e6;
@@ -65,7 +66,38 @@ contract Vault is Ownable, ReentrancyGuard {
     /// @notice Checks if a user has been added to depositors list
     mapping(address => bool) private hasDepositor;
 
+    /// @notice Stores data for each epoch
+    mapping(uint256 => EpochData) public epochData;
+
+    mapping(uint256 => address[]) public epochParticipants;
+    // Tracks if yield has been distributed for an epoch
+    mapping(uint256 => bool) public epochYieldDistributed;
+    mapping(uint256 => mapping(address => uint256)) public epochUserBalance;
+    mapping(uint256 => uint256) public epochTotalSupply;
+    mapping(uint256 => bool) public epochClosed;
+
     address public constant CORE_NATIVE = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
+    // --- Epoch Management ---
+    uint256 public constant EPOCH_DURATION = 24 hours; // 1 day
+    uint256 public currentEpoch; // Current epoch number
+    uint256 public epochStart; // Start timestamp of the current epoch
+
+    struct EpochData {
+        uint256 totalDepositedInBTC;
+        uint256 totalRedeemedInBTC;
+        uint256 wBTCYield; // Raw amount of wBTC earned as yield
+        uint256 stCOREYield; // Raw amount of stCORE earned as yield
+        uint256 totalYieldInBTC; // Calculated BTC value of total yield
+        mapping(address => DepositData) deposits;
+        mapping(address => uint256) redemptions;
+    }
+
+    struct DepositData {
+        uint256 wBTC;
+        uint256 stCORE;
+        uint256 lstBTCMinted;
+    }
 
     // --- EVENTS ---
 
@@ -135,7 +167,41 @@ contract Vault is Ownable, ReentrancyGuard {
      */
     event MinimumAmountsUpdated(uint256 depositMin, uint256 redeemMin);
 
-    event YieldInjected(address indexed caller, uint256 amount);
+    /// @notice Emitted when yield is injected into the vault
+    /// @param caller The address that triggered the yield injection
+    /// @param wBTCYield The amount of wBTC yield injected
+    /// @param stCOREYield The amount of stCORE yield injected
+    event YieldInjected(
+        address indexed caller,
+        uint256 wBTCYield,
+        uint256 stCOREYield
+    );
+
+    /// @notice Emitted when a new epoch starts
+    event EpochStarted(uint256 indexed epoch, uint256 startTime);
+
+    event EpochClosed(uint256 indexed epoch, uint256 totalSupply, uint256 timestamp);
+
+    /// @notice Emitted when an epoch ends and yield is distributed
+    /// @param epoch The epoch number
+    /// @param totalYieldInBTC The total yield distributed in BTC value
+    /// @param wBTCYield The raw wBTC yield amount
+    /// @param stCOREYield The raw stCORE yield amount
+    event EpochEnded(
+        uint256 indexed epoch,
+        uint256 totalYieldInBTC,
+        uint256 wBTCYield,
+        uint256 stCOREYield
+    );
+
+    /// @notice Emitted when a token is emergency withdrawn
+    event EmergencyWithdrawn(address indexed token, address indexed to, uint256 amount);
+
+    /// @notice Emitted when yield is distributed for an epoch
+    /// @param epoch The epoch number
+    /// @param totalYieldInBTC The total yield distributed (in BTC)
+    /// @param totalDepositedInBTC The total deposits in the epoch
+    event EpochYieldDistributed(uint256 indexed epoch, uint256 totalYieldInBTC, uint256 totalDepositedInBTC);
 
     /**
      * @notice Constructs the Vault with required dependencies
@@ -156,11 +222,16 @@ contract Vault is Ownable, ReentrancyGuard {
 
         wBTC = IERC20(_wBTC); 
         custodian = Custodian(_custodian);
+        stCORE = IERC20(custodian.stCORE());
         lstBTC = LstBTC(_lstBTC);
 
         depositMinAmount = 1e15; // 0.001 BTC minimum
         redeemMinAmount = 1e15;  // 0.001 lstBTC minimum
         protocolFeePoints = 0;   // No fees initially
+
+        // Start the first epoch
+        currentEpoch = 1;
+        epochStart = block.timestamp;
     }
 
     /// @notice Modifier to restrict access to the operator
@@ -217,6 +288,15 @@ contract Vault is Ownable, ReentrancyGuard {
         uint256 lstBTCMinted = custodian.deposit(msg.sender, amountWBTC, amountStCORE);
 
         lstBTC.mint(msg.sender, lstBTCMinted);
+
+        // Start the first epoch if needed
+        if (currentEpoch == 0) {
+            startNewEpoch();
+        }
+
+        // Record deposit in the current epoch
+        EpochData storage epoch = epochData[currentEpoch];
+        epoch.totalDepositedInBTC += lstBTCMinted;
 
         // After minting lstBTC
         if (!hasDepositor[msg.sender]) {
@@ -317,6 +397,96 @@ contract Vault is Ownable, ReentrancyGuard {
         emit YieldDistributed(totalYieldAmount, count);
     }
 
+    function _endCurrentEpoch() internal {
+        EpochData storage epoch = epochData[currentEpoch];
+        require(epoch.wBTCYield > 0 || epoch.stCOREYield > 0, "Vault: no yield to distribute for this epoch");
+        require(epoch.totalDepositedInBTC > 0, "Vault: no deposits in this epoch");
+
+        // --- Calculate Total Yield in BTC ---
+        (uint256 price_stCORE_CORE, uint256 price_CORE_BTC) = custodian.getPriceInfo();
+
+        uint256 stCOREInBTC = VaultMath.btcValueOfStCORE(
+            epoch.stCOREYield,
+            price_stCORE_CORE,
+            price_CORE_BTC
+        );
+        uint256 totalYieldInBTC = epoch.wBTCYield + stCOREInBTC;
+        epoch.totalYieldInBTC = totalYieldInBTC;
+
+        // --- Distribute Yield to Participants ---
+        address[] memory participants = _getParticipants(currentEpoch);
+        uint256[] memory amounts = new uint256[](participants.length);
+
+        for (uint256 i = 0; i < participants.length; i++) {
+            address user = participants[i];
+            DepositData memory userDeposit = epoch.deposits[user];
+            uint256 userDepositedInBTC = VaultMath.calculateLstBTCToMint(
+                userDeposit.wBTC,
+                userDeposit.stCORE,
+                price_stCORE_CORE,
+                price_CORE_BTC
+            );
+
+            // Calculate user's share of the total yield
+            uint256 userYield = (userDepositedInBTC * totalYieldInBTC) / epoch.totalDepositedInBTC;
+            amounts[i] = userYield;
+        }
+
+        // Mint and distribute lstBTC
+        lstBTC.distributeYield(participants, amounts);
+
+        // --- Process Redemptions ---
+        _processRedemptions(currentEpoch);
+
+        emit EpochEnded(currentEpoch, totalYieldInBTC, epoch.wBTCYield, epoch.stCOREYield);
+    }
+
+    /**
+     * @notice Gets the list of users who participated in an epoch
+     * @param epochId The epoch to query
+     * @return An array of participant addresses
+     */
+    function _getParticipants(uint256 epochId) internal view returns (address[] memory) {
+        EpochData storage epoch = epochData[epochId];
+        uint256 count = 0;
+        for (uint256 i = 0; i < depositors.length; i++) {
+            if (epoch.deposits[depositors[i]].lstBTCMinted > 0) {
+                count++;
+            }
+        }
+
+        address[] memory participants = new address[](count);
+        uint256 j = 0;
+        for (uint256 i = 0; i < depositors.length; i++) {
+            if (epoch.deposits[depositors[i]].lstBTCMinted > 0) {
+                participants[j] = depositors[i];
+                j++;
+            }
+        }
+        return participants;
+    }
+
+    /**
+     * @notice Processes all queued redemptions for an epoch
+     * @param epochId The epoch to process
+     */
+    function _processRedemptions(uint256 epochId) internal {
+        EpochData storage epoch = epochData[epochId];
+        for (uint256 i = 0; i < depositors.length; i++) {
+            address user = depositors[i];
+            uint256 redemptionAmount = epoch.redemptions[user];
+            if (redemptionAmount > 0) {
+                (uint256 wBTCReturned, uint256 stCOREReturned) = custodian.redeem(user, redemptionAmount);
+                if (wBTCReturned > 0) {
+                    wBTC.transfer(user, wBTCReturned);
+                }
+                if (stCOREReturned > 0) {
+                    stCORE.transfer(user, stCOREReturned);
+                }
+            }
+        }
+    }
+
     /**
      * @notice Internally distributes yield to all lstBTC holders proportionally
      * @dev Uses depositors list and userBalances to calculate shares
@@ -341,23 +511,97 @@ contract Vault is Ownable, ReentrancyGuard {
         emit FeesCollected(feeAmount);
     }
 
-    /// @notice Notifies the custodian of new BTC-denominated yield and triggers distribution
-    /// @dev Only owner (operator) can call. Yield is backed by wBTC in custody.
-    /// @param amount Amount of yield to inject (in BTC, 1e18 scale)
-    function notifyYield(uint256 amount) external onlyOperator {
-        require(amount > 0, "Custodian: yield amount must be positive");
+    /**
+     * @notice Operator notifies the vault of earned yield from both wBTC and stCORE
+     * @dev The operator must have already transferred the wBTC and stCORE to the Custodian.
+     *      This function stores the raw yield amounts for the current epoch.
+     * @param wBTCYield The amount of wBTC earned as yield
+     * @param stCOREYield The amount of stCORE earned as yield
+     */
+    function notifyYield(uint256 wBTCYield, uint256 stCOREYield) external onlyOperator {
+        require(wBTCYield > 0 || stCOREYield > 0, "Vault: yield amount must be positive");
+
         require(
-            wBTC.balanceOf(address(custodian)) >= amount,
-            "Custodian: insufficient wBTC balance for yield injection"
+            wBTC.balanceOf(address(custodian)) >= wBTCYield,
+            "Vault: insufficient wBTC yield in custody"
+        );
+        require(
+            stCORE.balanceOf(address(custodian)) >= stCOREYield,
+            "Vault: insufficient stCORE yield in custody"
         );
 
-        // sanity check for max yield rate (e.g., 10% per week max)
-        uint256 totalBTC = custodian.getTotalBTCValue();
-        require(amount <= totalBTC / 10, "Custodian: yield too high");
+        require(currentEpoch > 0, "Vault: no epoch started");
 
-        emit YieldInjected(msg.sender, amount);
+        EpochData storage epoch = epochData[currentEpoch];
+        epoch.wBTCYield = wBTCYield;
+        epoch.stCOREYield = stCOREYield;
 
-        _distributeYieldProportionally(amount);
+        emit YieldInjected(msg.sender, wBTCYield, stCOREYield);
+    }
+
+    function startNewEpoch() public onlyOperator {
+        if (currentEpoch > 0) {
+            _endCurrentEpoch();
+        }
+
+        currentEpoch++;
+        epochStart = block.timestamp;
+        emit EpochStarted(currentEpoch, epochStart);
+    }
+
+    function closeEpoch() public onlyOperator {
+        // Ensure enough time has passed
+        require(block.timestamp >= epochStart + EPOCH_DURATION, "Vault: Epoch not finished");
+        require(!epochClosed[currentEpoch], "Vault: Already closed");
+
+        // Snapshot balances
+        uint256 e = currentEpoch;
+        uint256 total = 0;
+        address[] storage participants = epochParticipants[e];
+
+        for (uint256 i = 0; i < depositors.length; i++) {
+            address user = depositors[i];
+            uint256 bal = userBalances[user];
+            if (bal > 0) {
+                participants.push(user);
+                epochUserBalance[e][user] = bal;
+                total += bal;
+            }
+        }
+
+        epochTotalSupply[e] = total;
+        epochClosed[e] = true;
+        emit EpochClosed(e, total, block.timestamp);
+    }
+
+    /**
+     * @notice Distributes the yield for the current epoch to all participants.
+     * @dev This function should be called after notifyYield() and closeEpoch().
+     *      It calculates the total BTC value of the yield and mints lstBTC proportionally.
+     */
+    function distributeEpochYield() external nonReentrant {
+        require(epochClosed[currentEpoch], "Vault: Epoch not closed");
+        require(!epochYieldDistributed[currentEpoch], "Vault: Yield already distributed");
+
+        EpochData storage epoch = epochData[currentEpoch];
+        require(epoch.wBTCYield > 0 || epoch.stCOREYield > 0, "Vault: No yield to distribute");
+
+        // --- Calculate Total Yield in BTC ---
+        (uint256 price_stCORE_CORE, uint256 price_CORE_BTC) = custodian.getPriceInfo();
+        uint256 stCOREInBTC = VaultMath.btcValueOfStCORE(
+            epoch.stCOREYield,
+            price_stCORE_CORE,
+            price_CORE_BTC
+        );
+        uint256 totalYieldInBTC = epoch.wBTCYield + stCOREInBTC;
+
+        // --- Distribute Yield ---
+        _distributeYieldProportionally(totalYieldInBTC);
+
+        // --- Mark as Distributed ---
+        epochYieldDistributed[currentEpoch] = true;
+
+        emit EpochYieldDistributed(currentEpoch, totalYieldInBTC, epoch.totalDepositedInBTC);
     }
 
     // --- Admin Functions ---
@@ -433,16 +677,6 @@ contract Vault is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Gets current oracle prices
-     * @return stCOREPrice stCORE to CORE price
-     * @return coreBTCPrice CORE to BTC price
-     */
-    function getCurrentPrices() external view returns (uint256 stCOREPrice, uint256 coreBTCPrice) {
-        stCOREPrice = custodian.priceOracle().getPrice(address(custodian.stCORE()));
-        coreBTCPrice = custodian.priceOracle().getPrice(CORE_NATIVE);
-    }
-
-    /**
      * @notice Gets user's deposit ratios
      * @param user User address
      * @return r_wBTC wBTC ratio
@@ -463,6 +697,25 @@ contract Vault is Ownable, ReentrancyGuard {
         btcValue = balance;
     }
 
+    function getEpochInfo(uint256 epochId) external view returns (
+        uint256 totalDeposited,
+        uint256 totalRedeemed,
+        uint256 wBTCYield,
+        uint256 stCOREYield,
+        uint256 totalYieldInBTC,
+        uint256 epochStartTime
+    ) {
+        EpochData storage epoch = epochData[epochId];
+        return (
+            epoch.totalDepositedInBTC,
+            epoch.totalRedeemedInBTC,
+            epoch.wBTCYield,
+            epoch.stCOREYield,
+            epoch.totalYieldInBTC,
+            epochStart + (epochId - 1) * EPOCH_DURATION
+        );
+    }
+
     /**
      * @notice Allows the contract to receive CORE for fees
      */
@@ -476,6 +729,11 @@ contract Vault is Ownable, ReentrancyGuard {
      * @param amount Amount to withdraw
      */
     function emergencyWithdraw(address token, uint256 amount) external onlyOwner {
-        IERC20(token).transfer(owner(), amount);
+        if (token == CORE_NATIVE) {
+            payable(owner()).transfer(amount);
+        } else {
+            IERC20(token).transfer(owner(), amount);
+        }
+        emit EmergencyWithdrawn(token, owner(), amount);
     }
 }
