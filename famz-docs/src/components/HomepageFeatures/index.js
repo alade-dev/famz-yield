@@ -5,155 +5,120 @@ import styles from "./styles.module.css";
 const FeatureList = [
   {
     title: "Dual-Asset BTC Yield Vault",
-    Svg: () => (
-      <svg
-        viewBox="0 0 24 24"
-        width="80"
-        height="80"
-        className={styles.featureSvg}
-      >
-        <circle cx="12" cy="12" r="10" fill="#F7931A" />
-        <path
-          d="M12 6v12M6 12h12"
-          stroke="white"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-        <circle
-          cx="12"
-          cy="12"
-          r="4"
-          stroke="white"
-          strokeWidth="2"
-          fill="none"
-        />
-      </svg>
-    ),
+    icon: "🪙",
+    gradient: "linear-gradient(135deg, #F7931A 0%, #FF6B35 100%)",
     description: (
       <>
         Combine <strong>wBTC</strong> and <strong>stCORE</strong> in a single
         vault to earn BTC-pegged yield as <strong>lstBTC</strong>. Powered by a
-        24-hour epoch system for fair distribution.
+        sophisticated epoch system for fair and transparent distribution.
       </>
     ),
+    features: [
+      "Multi-asset deposits",
+      "BTC-pegged rewards",
+      "Epoch-based distribution",
+    ],
   },
   {
     title: "Custodian-Secured & Transparent",
-    Svg: () => (
-      <svg
-        viewBox="0 0 24 24"
-        width="80"
-        height="80"
-        className={styles.featureSvg}
-      >
-        <rect
-          x="4"
-          y="6"
-          width="16"
-          height="12"
-          rx="2"
-          fill="#6366F1"
-          stroke="white"
-          strokeWidth="2"
-        />
-        <line
-          x1="12"
-          y1="6"
-          x2="12"
-          y2="18"
-          stroke="white"
-          strokeWidth="1"
-          strokeDasharray="4 4"
-        />
-        <circle cx="12" cy="9" r="1.5" fill="white" />
-        <circle cx="12" cy="15" r="1.5" fill="white" />
-      </svg>
-    ),
+    icon: "🔒",
+    gradient: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
     description: (
       <>
-        All deposits are held by the <strong>Custodian contract</strong> —
-        open-source, on-chain, and designed to minimize risk while ensuring full
-        transparency.
+        All deposits are secured by our <strong>Custodian contract</strong> —
+        fully open-source, on-chain, and audited. Complete transparency with
+        minimal risk and maximum security.
       </>
     ),
+    features: [
+      "Open-source contracts",
+      "On-chain transparency",
+      "Audited security",
+    ],
   },
   {
-    title: "Yield with No Fixed Lock-Up",
-    Svg: () => (
-      <svg
-        viewBox="0 0 24 24"
-        width="80"
-        height="80"
-        className={styles.featureSvg}
-      >
-        <path
-          d="M12 2L2 7v10l10 5 10-5V7l-10-5z"
-          fill="#10B981"
-          stroke="white"
-          strokeWidth="2"
-        />
-        <path
-          d="M12 8v8M8 10h8"
-          stroke="white"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-        <circle cx="12" cy="14" r="1" fill="white" />
-      </svg>
-    ),
+    title: "Flexible Yield Generation",
+    icon: "⚡",
+    gradient: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
     description: (
       <>
         Earn yield on your BTC and LSTs with no fixed lock-up period. Redeem{" "}
         <strong>lstBTC</strong> anytime for your underlying{" "}
-        <strong>wBTC</strong> and <strong>stCORE</strong>.
+        <strong>wBTC</strong> and <strong>stCORE</strong> assets.
       </>
     ),
+    features: ["No lock-up period", "Instant redemption", "Flexible deposits"],
   },
   {
-    title: "Epoch-Based Fair Yield",
-    Svg: () => (
-      <svg
-        viewBox="0 0 24 24"
-        width="80"
-        height="80"
-        className={styles.featureSvg}
-      >
-        <circle cx="12" cy="12" r="10" fill="#3B82F6" />
-        <path
-          d="M12 6v6l4 2"
-          stroke="white"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <circle
-          cx="12"
-          cy="12"
-          r="8"
-          stroke="white"
-          strokeWidth="1.5"
-          fill="none"
-        />
-      </svg>
-    ),
+    title: "Real-Time Price Oracles",
+    icon: "📊",
+    gradient: "linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)",
     description: (
       <>
-        Yield is calculated and distributed at the end of each epoch, ensuring
-        all participants receive rewards fairly based on their share.
+        Powered by real-time price oracles that update every 15 seconds,
+        ensuring accurate valuations and fair yield calculations across all
+        market conditions.
       </>
     ),
+    features: ["15-second updates", "Accurate pricing", "Market-responsive"],
+  },
+  {
+    title: "Advanced Smart Contracts",
+    icon: "🧠",
+    gradient: "linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)",
+    description: (
+      <>
+        Built with cutting-edge Solidity contracts featuring comprehensive
+        testing, gas optimization, and security best practices for
+        institutional-grade DeFi operations.
+      </>
+    ),
+    features: ["Gas optimized", "Comprehensive testing", "Security audited"],
+  },
+  {
+    title: "Cross-Chain Ready",
+    icon: "🌐",
+    gradient: "linear-gradient(135deg, #EF4444 0%, #DC2626 100%)",
+    description: (
+      <>
+        Designed for the CORE blockchain with architecture that supports future
+        cross-chain expansion, enabling broader access to Bitcoin yield
+        opportunities.
+      </>
+    ),
+    features: ["CORE native", "Cross-chain ready", "Scalable architecture"],
   },
 ];
 
-function Feature({ Svg, title, description }) {
+function Feature({ title, icon, gradient, description, features }) {
   return (
-    <div className={clsx("col col--4")}>
-      <div className="text--center">
-        <Svg />
-      </div>
-      <div className="text--center padding-horiz--md">
-        <Heading as="h3">{title}</Heading>
-        <p>{description}</p>
+    <div className={clsx("col col--4", styles.featureCol)}>
+      <div className={styles.featureCard}>
+        {/* <div className={styles.featureIcon} style={{ background: gradient }}>
+          <span className={styles.iconEmoji}>{icon}</span>
+        </div> */}
+
+        <div className={styles.featureContent}>
+          <Heading as="h3" className={styles.featureTitle}>
+            {title}
+          </Heading>
+          <p className={styles.featureDescription}>{description}</p>
+
+          <div className={styles.featureList}>
+            {features.map((feature, index) => (
+              <div key={index} className={styles.featureItem}>
+                <span className={styles.featureCheck}>✓</span>
+                <span>{feature}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div
+          className={styles.featureGlow}
+          style={{ background: gradient }}
+        ></div>
       </div>
     </div>
   );
@@ -163,6 +128,14 @@ export default function HomepageFeatures() {
   return (
     <section className={styles.features}>
       <div className="container">
+        <div className={styles.featuresHeader}>
+          <h2 className={styles.featuresTitle}>Why Choose Famz Yield?</h2>
+          <p className={styles.featuresDescription}>
+            Built with institutional-grade security and cutting-edge technology
+            to maximize your Bitcoin yield potential
+          </p>
+        </div>
+
         <div className="row">
           {FeatureList.map((props, idx) => (
             <Feature key={idx} {...props} />

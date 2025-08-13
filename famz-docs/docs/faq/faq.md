@@ -1,49 +1,75 @@
 ---
-title: FAQ
+sidebar_position: 1
 ---
 
 # Frequently Asked Questions
 
-## Q: What is lstBTC?
+## General Questions
 
-A: `lstBTC` is a yield-bearing ERC-20 token where 1 lstBTC = 1 BTC in value. It represents a claim on a basket of wBTC and stCORE held in the vault, plus any yield earned.
+### What is Famz Yield?
 
-## Q: How does the epoch system work?
+Famz Yield is a decentralized BTC yield vault on the CORE Blockchain. It allows users to deposit wBTC and stCORE to earn yield in the form of lstBTC.
 
-A: The vault operates in **24-hour epochs**.
+### Is Famz Yield audited?
 
-- If you deposit during an epoch, your deposit starts earning yield in the **next epoch**.
-- If you request a withdrawal, your assets are returned at the **end of the current epoch**.  
-  This batching makes yield calculations simpler and ensures fairness.
+Famz Yield is currently in testnet phase. A comprehensive security audit will be completed before mainnet launch. Please check the [Audit Status](/security/audit-status) page for the latest information.
 
-## Q: How is yield distributed?
+### What blockchain does Famz Yield run on?
 
-A: Yields are tracked separately for **wBTC** and **stCORE**:
+Famz Yield is built on the CORE Blockchain, which offers high performance and low transaction costs.
 
-1. The operator closes the epoch to lock participant balances.
-2. The operator injects yield into the `Custodian` (in wBTC and/or stCORE).
-3. The vault converts yields to a BTC-equivalent value and mints new `lstBTC` proportionally to each participant’s BTC-equivalent share.
+## Using Famz Yield
 
-## Q: Can I redeem anytime?
+### How do I deposit assets into Famz Yield?
 
-A: You can request redemption at any time, but assets are released **at the end of the epoch** to ensure correct yield accounting.
+Please refer to our detailed [Depositing Guide](/user-guide/depositing) for step-by-step instructions.
 
-## Q: Can I lose money?
+### What is the minimum deposit amount?
 
-A: On **testnet** — no (funds are simulated).  
-On **mainnet** — yes, due to potential smart contract bugs, strategy underperformance, or oracle failures.
+The minimum deposit amount may vary. Please check the current parameters in the [Vault Parameters](/architecture/system-design#vault-parameters) section.
 
-## Q: Why track yields separately for wBTC and stCORE?
+### How is yield generated?
 
-A: wBTC and stCORE have different yield sources and risk profiles. Tracking them separately ensures:
+Yield is generated through a combination of mechanisms. See our [Yield Model](/economics/yield-model) page for detailed information.
 
-- Accurate BTC-equivalent valuation.
-- Fair yield distribution based on the type and value of assets deposited.
+### How do I redeem my assets?
 
-## Q: Who can trigger yield distribution?
+You can redeem your assets at any time. See the [Redeeming Guide](/user-guide/redeeming) for detailed instructions.
 
-A: Only the designated **operator** can:
+## Technical Questions
 
-- Close epochs.
-- Inject yields.
-- Distribute yields to participants.
+### What is lstBTC?
+
+lstBTC (Liquid Staked Bitcoin) is the token you receive when you deposit wBTC and stCORE into the Famz Yield vault. It represents your share of the vault and accrues yield over time.
+
+### How are vault assets secured?
+
+Vault assets are secured by the Custodian contract. For more information, see the [System Design](/architecture/system-design#security-model) documentation.
+
+### What is the relationship between wBTC and stCORE?
+
+wBTC (Wrapped Bitcoin) and stCORE (Staked CORE) are the two assets used in the dual-asset vault. They work together to provide balanced exposure and enhanced yield opportunities. See the [Tokenomics](/architecture/tokenomics) page for more details.
+
+## Development & Contribution
+
+### How can I contribute to Famz Yield?
+
+We welcome contributions from the community! Please see our [Contributing Guide](/developer-guide/contributing) for details on how to get involved.
+
+### Where can I find the smart contract code?
+
+The smart contract code is available in our [GitHub repository](https://github.com/alade-dev/famz-yield). You can also find detailed explanations in the [Contracts](/architecture/contracts) section.
+
+### How do I set up a local development environment?
+
+Please refer to our [Setup Guide](/developer-guide/setup) for instructions on setting up your local development environment.
+
+## Support & Community
+
+### Where can I get help if I have issues?
+
+If you encounter any issues, please join our [Discord community](https://discord.gg/famz-yield) or open an issue on our [GitHub repository](https://github.com/alade-dev/famz-yield/issues).
+
+### How can I stay updated on Famz Yield developments?
+
+Follow us on [Twitter](https://twitter.com/famz_yield) and join our [Discord](https://discord.gg/famz-yield) for the latest updates and announcements.

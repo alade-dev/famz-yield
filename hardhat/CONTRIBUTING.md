@@ -55,8 +55,8 @@ You can contribute in several ways:
 ### Fork and Clone the Repository
 
 ```bash
-git clone https://github.com/alade-dev/famz-vault.git
-cd famz-vault
+git clone https://github.com/alade-dev/famz-yield.git
+cd famz-yield
 ```
 
 ### Install Dependencies

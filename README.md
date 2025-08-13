@@ -138,7 +138,7 @@ By leveraging a **custodian-based model** and on-chain smart contracts, Famz Yie
 ## Project Structure
 
 ```
-famz-vault/
+famz-yield/
 ├── hardhat/ # Smart contracts and Hardhat setup
 │ ├── contracts/ # Solidity contracts (Vault, Custodian, etc.)
 │ ├── scripts/ # Deployment and utility scripts
@@ -226,15 +226,15 @@ famz-vault/
 
 ### Installation
 
-- git clone https://github.com/alade-dev/famz-vault.git
-- cd famz-vault
+- git clone https://github.com/alade-dev/famz-yield.git
+- cd famz-yield
 - cd client
 - npm install
 
 ### Compile & Test
 
 ```bash
-# From root (famz-vault/hardhat)
+# From root (famz-yield/hardhat)
 npx hardhat compile
 npx hardhat test
 ```

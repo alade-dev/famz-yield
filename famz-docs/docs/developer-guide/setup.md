@@ -9,8 +9,8 @@ Follow these steps to set up and test the **Famz Vault** smart contract system.
 ## 1. Clone the Repository
 
 ```bash
-git clone https://github.com/alade-dev/famz-vault.git
-cd famz-vault
+git clone https://github.com/alade-dev/famz-yield.git
+cd famz-yield
 ```
 
 ## 2. Install Dependencies
@@ -97,7 +97,7 @@ npx hardhat verify --network coreTestnet <DEPLOYED_CONTRACT_ADDRESS> "constructo
 ## 9. Project Structure
 
 ```
-famz-vault/
+famz-yield/
 │
 ├── contracts/        # Solidity smart contracts
 ├── scripts/          # Deployment & utility scripts
