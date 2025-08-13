@@ -1,12 +1,10 @@
-// src/components/HomepageFeatures.js
 import clsx from "clsx";
 import Heading from "@theme/Heading";
 import styles from "./styles.module.css";
 
-// Use inline SVGs for full control (no external dependencies)
 const FeatureList = [
   {
-    title: "BTC + LST Yield Vault",
+    title: "Dual-Asset BTC Yield Vault",
     Svg: () => (
       <svg
         viewBox="0 0 24 24"
@@ -14,7 +12,7 @@ const FeatureList = [
         height="80"
         className={styles.featureSvg}
       >
-        <circle cx="12" cy="12" r="10" fill="#F7931A" /> {/* Bitcoin Orange */}
+        <circle cx="12" cy="12" r="10" fill="#F7931A" />
         <path
           d="M12 6v12M6 12h12"
           stroke="white"
@@ -33,13 +31,14 @@ const FeatureList = [
     ),
     description: (
       <>
-        Deposit <strong>wBTC and stCORE</strong> into a single vault and earn
-        yield as <strong>lstBTC</strong> — a token pegged 1:1 to Bitcoin value.
+        Combine <strong>wBTC</strong> and <strong>stCORE</strong> in a single
+        vault to earn BTC-pegged yield as <strong>lstBTC</strong>. Powered by a
+        24-hour epoch system for fair distribution.
       </>
     ),
   },
   {
-    title: "Custodian-Secured Assets",
+    title: "Custodian-Secured & Transparent",
     Svg: () => (
       <svg
         viewBox="0 0 24 24"
@@ -72,14 +71,14 @@ const FeatureList = [
     ),
     description: (
       <>
-        All deposits are held securely by the{" "}
-        <strong>Custodian contract</strong>, ensuring transparency and reducing
-        smart contract risk.
+        All deposits are held by the <strong>Custodian contract</strong> —
+        open-source, on-chain, and designed to minimize risk while ensuring full
+        transparency.
       </>
     ),
   },
   {
-    title: "Yield Without Locking",
+    title: "Yield with No Fixed Lock-Up",
     Svg: () => (
       <svg
         viewBox="0 0 24 24"
@@ -104,8 +103,43 @@ const FeatureList = [
     ),
     description: (
       <>
-        Earn yield on your assets while maintaining full liquidity. Redeem{" "}
-        <strong>lstBTC anytime</strong> for your original wBTC and stCORE.
+        Earn yield on your BTC and LSTs with no fixed lock-up period. Redeem{" "}
+        <strong>lstBTC</strong> anytime for your underlying{" "}
+        <strong>wBTC</strong> and <strong>stCORE</strong>.
+      </>
+    ),
+  },
+  {
+    title: "Epoch-Based Fair Yield",
+    Svg: () => (
+      <svg
+        viewBox="0 0 24 24"
+        width="80"
+        height="80"
+        className={styles.featureSvg}
+      >
+        <circle cx="12" cy="12" r="10" fill="#3B82F6" />
+        <path
+          d="M12 6v6l4 2"
+          stroke="white"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle
+          cx="12"
+          cy="12"
+          r="8"
+          stroke="white"
+          strokeWidth="1.5"
+          fill="none"
+        />
+      </svg>
+    ),
+    description: (
+      <>
+        Yield is calculated and distributed at the end of each epoch, ensuring
+        all participants receive rewards fairly based on their share.
       </>
     ),
   },
