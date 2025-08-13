@@ -8,13 +8,6 @@ interface CoinGeckoResponse {
   };
 }
 
-interface CoinbaseResponse {
-  data: {
-    amount: string;
-    currency: string;
-  };
-}
-
 /**
  * Fetch BTC price from CoinGecko API (free tier)
  */
@@ -32,27 +25,6 @@ export const getBTCPriceFromCoinGecko = async (): Promise<number> => {
     return data.bitcoin.usd;
   } catch (error) {
     console.error("Error fetching BTC price from CoinGecko:", error);
-    throw error;
-  }
-};
-
-/**
- * Fetch BTC price from Coinbase API (backup)
- */
-export const getBTCPriceFromCoinbase = async (): Promise<number> => {
-  try {
-    const response = await fetch(
-      "https://api.coinbase.com/v2/exchange-rates?currency=BTC"
-    );
-
-    if (!response.ok) {
-      throw new Error(`Coinbase API error: ${response.status}`);
-    }
-
-    const data: CoinbaseResponse = await response.json();
-    return parseFloat(data.data.amount);
-  } catch (error) {
-    console.error("Error fetching BTC price from Coinbase:", error);
     throw error;
   }
 };
@@ -84,7 +56,6 @@ export const getBTCPriceFromBinance = async (): Promise<number> => {
 export const getCurrentBTCPrice = async (): Promise<number> => {
   const APIs = [
     { name: "CoinGecko", fn: getBTCPriceFromCoinGecko },
-    { name: "Coinbase", fn: getBTCPriceFromCoinbase },
     { name: "Binance", fn: getBTCPriceFromBinance },
   ];
 
