@@ -231,6 +231,16 @@ contract Custodian is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
+     * @notice Gets the current prices for stCORE and CORE/BTC
+     * @return price_stCORE_CORE stCORE to CORE price (1e18-scaled)
+     * @return price_CORE_BTC CORE to BTC price (1e18-scaled)
+     */
+    function getPriceInfo() external view returns (uint256 price_stCORE_CORE, uint256 price_CORE_BTC) {
+        price_stCORE_CORE = priceOracle.getPrice(address(stCORE));
+        price_CORE_BTC = priceOracle.getPrice(CORE_NATIVE);
+    }
+
+    /**
      * @notice Gets user's deposit ratios
      * @param user User address
      * @return r_wBTC wBTC ratio (1e18-scaled)
