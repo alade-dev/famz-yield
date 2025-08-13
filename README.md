@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./docs/logo5.png" alt="Logo" width="280"/>
+  <img src="./famz-docs/static/img/logo5.png" alt="Logo" width="280"/>
 </p>
 
 <h1 align="center">Famz Yielding Protocol</h1>
@@ -110,7 +110,7 @@ By leveraging a **custodian-based model** and on-chain smart contracts, Famz Yie
 
 ## Architecture
 
-![Architecture Diagram](docs/vault1.drawio.png)
+![Architecture Diagram](famz-docs/static/img/vault1.drawio.png)
 
 ### Core Components:
 
