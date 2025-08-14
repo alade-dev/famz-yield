@@ -228,7 +228,7 @@ const Vaults = () => {
   }, []);
 
   // Dynamic calculations with boost system
-  const btcValue = Math.max(0, Number(parseFloat(btcAmount || "0").toFixed(5)));
+  const btcValue = Math.max(0, Number(parseFloat(btcAmount || "0")));
   const coreValue = Math.max(0, parseFloat(coreAmount) || 0);
   const lstbtcValue = Math.max(0, parseFloat(lstbtcAmount) || 0);
 

@@ -117,17 +117,13 @@ const UserPositions = ({ limit }: UserPositionsProps) => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">wBTC Deposited</p>
-                <p className="font-medium">
-                  {position.wbtcDeposited.toFixed(8)}
-                </p>
+                <p className="font-medium">{position.wbtcDeposited}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">
                   stCORE Deposited
                 </p>
-                <p className="font-medium">
-                  {position.stcoreDeposited.toFixed(5)}
-                </p>
+                <p className="font-medium">{position.stcoreDeposited}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">
