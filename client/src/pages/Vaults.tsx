@@ -118,12 +118,12 @@ const Vaults = () => {
       setPrices(newPrices);
       setLastPriceUpdate(Date.now());
 
-      console.log("Oracle prices fetched:", {
-        realBTCPrice: `$${btcUsdPrice.toLocaleString()}`,
-        stCOREPrice: oraclePrices.stCOREPrice,
-        coreBTCPrice: oraclePrices.coreBTCPrice,
-        calculatedUSDPrices: newPrices,
-      });
+      // console.log("Oracle prices fetched:", {
+      //   realBTCPrice: `$${btcUsdPrice.toLocaleString()}`,
+      //   stCOREPrice: oraclePrices.stCOREPrice,
+      //   coreBTCPrice: oraclePrices.coreBTCPrice,
+      //   calculatedUSDPrices: newPrices,
+      // });
     } catch (error) {
       console.error("Failed to fetch oracle prices:", error);
     } finally {
@@ -432,7 +432,7 @@ const Vaults = () => {
           });
 
           const allowances = await checkAllowances(address, wbtcAmt, stcoreAmt);
-          console.log("Current allowances:", allowances);
+          // console.log("Current allowances:", allowances);
 
           const approvalResults: Array<{
             token: string;
@@ -518,7 +518,7 @@ const Vaults = () => {
           coreAmount || "0"
         );
 
-        console.log("Deposit transaction hash:", txHash);
+        // console.log("Deposit transaction hash:", txHash);
 
         // Calculate the actual lstBTC generated using oracle prices
         const lstBTCResult = await calculateLstBTCFromDeposit(
@@ -567,11 +567,11 @@ const Vaults = () => {
           return;
         }
 
-        console.log("Redeem simulation successful:", redeemSimulation.result);
+        // console.log("Redeem simulation successful:", redeemSimulation.result);
 
         // Calculate what user will receive
         const redeemOutput = await calculateRedeemOutput(address, lstbtcAmount);
-        console.log("User will receive:", redeemOutput);
+        // console.log("User will receive:", redeemOutput);
 
         // Show confirmation modal with calculated output
         setShowRedeemModal(true);
@@ -660,13 +660,13 @@ const Vaults = () => {
 
       // Execute the blockchain redeem
       const txHash = await executeVaultRedeem(lstbtcAmount);
-      console.log("Redeem transaction hash:", txHash);
+      // console.log("Redeem transaction hash:", txHash);
 
       // Get the actual amounts received
       const redeemOutput = await calculateRedeemOutput(address, lstbtcAmount);
 
       // Update local positions (remove redeemed amount)
-      const breakdown = calculateRedeemBreakdown(lstbtcValue);
+      // const breakdown = calculateRedeemBreakdown(lstbtcValue);
       let remainingLstbtc = lstbtcValue;
       const positionsToUpdate = [...positions];
       const positionsToRemove: string[] = [];
@@ -734,7 +734,11 @@ const Vaults = () => {
         variant: "default",
       });
 
-      console.log("Redeem completed successfully");
+      // Show success modal
+      setSuccessTxHash(txHash);
+      setShowSuccessModal(true);
+
+      // console.log("Redeem completed successfully");
     } catch (error) {
       console.error("Redeem execution failed:", error);
       toast({
@@ -778,9 +782,9 @@ const Vaults = () => {
 
       // If position has no deposits left, mark for removal
       if (position.wbtcDeposited === 0 && position.stcoreDeposited === 0) {
-        console.log(
-          `Marking position ${position.id} for removal - fully withdrawn`
-        );
+        // console.log(
+        //   `Marking position ${position.id} for removal - fully withdrawn`
+        // );
         positionsToRemove.push(position.id);
       } else {
         // Recalculate lstBTC and current value for remaining position (using dynamic prices)
@@ -814,15 +818,15 @@ const Vaults = () => {
 
     // Remove positions that are fully withdrawn
     positionsToRemove.forEach((positionId) => {
-      console.log(`Removing position: ${positionId}`);
+      // console.log(`Removing position: ${positionId}`);
       removePosition(positionId);
     });
 
-    console.log("Position updates applied successfully:", {
-      updated: updatedPositions.length,
-      removed: positionsToRemove.length,
-      positionsToRemove: positionsToRemove,
-    });
+    // console.log("Position updates applied successfully:", {
+    //   updated: updatedPositions.length,
+    //   removed: positionsToRemove.length,
+    //   positionsToRemove: positionsToRemove,
+    // });
 
     return {
       btcWithdrawn: btcToUnstake - remainingBtc,
@@ -1247,7 +1251,7 @@ const Vaults = () => {
 
               {/* Redeem Preview */}
               {mode === "redeem" && lstbtcAmount && lstbtcValue > 0 && (
-                <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="p-3 bg-muted/50 flex flex-col items-center justify-center rounded-lg">
                   <p className="text-sm text-muted-foreground mb-2">
                     You will receive:
                   </p>
@@ -1517,7 +1521,7 @@ const Vaults = () => {
                 You are redeeming
               </div>
               <div className="text-2xl font-bold text-gold">
-                {lstbtcValue} lstBTC
+                {lstbtcValue.toFixed(6)} lstBTC
               </div>
             </div>
 
@@ -1582,8 +1586,12 @@ const Vaults = () => {
         isOpen={showSuccessModal}
         onClose={() => setShowSuccessModal(false)}
         txHash={successTxHash}
-        title="Deposit Completed"
-        description="Your deposit has been successfully processed and lstBTC has been generated!"
+        title={mode === "deposit" ? "Deposit Completed" : "Redeem Completed"}
+        description={
+          mode === "deposit"
+            ? "Your deposit has been successfully processed and lstBTC has been generated!"
+            : "Your redeem has been successfully processed and wBTC and stCORE have been generated!"
+        }
       />
     </div>
   );

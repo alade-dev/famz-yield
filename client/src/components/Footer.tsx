@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Twitter, Github } from "lucide-react";
+import logo5 from "@/assets/logo5.png";
 
 const Footer = () => {
   const footerSections = [
@@ -10,14 +11,20 @@ const Footer = () => {
         { label: "Vaults", href: "/vaults" },
         { label: "Dashboard", href: "/dashboard" },
         { label: "Faucet", href: "/faucet" },
-        { label: "Stake", href: "#", comingSoon: true },
+        { label: "Staking", href: "#", comingSoon: true },
       ],
     },
     {
       title: "Resources",
       links: [
-        { label: "Documentation", href: "#" },
-        { label: "Tutorials", href: "#" },
+        {
+          label: "Documentation",
+          href: "https://famz-yield.vercel.app/overview/vision",
+        },
+        {
+          label: "Tutorials",
+          href: "https://famz-yield.vercel.app/developer-guide/setup",
+        },
         { label: "GitHub", href: "https://github.com/alade-dev/famz-yield" },
       ],
     },
@@ -42,14 +49,12 @@ const Footer = () => {
   return (
     <footer className="bg-background border-t border-vault-border">
       <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8">
           {/* Brand Section */}
           <div className="lg:col-span-2 pr-8">
             <Link to="/" className="flex items-center space-x-2 mb-4">
-              <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-lg">
-                  F
-                </span>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center">
+                <img src={logo5} alt="Famz Yield Logo" className="w-9 h-9" />
               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
                 Famz Yield

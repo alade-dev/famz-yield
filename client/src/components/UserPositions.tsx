@@ -24,24 +24,24 @@ const UserPositions = ({ limit }: UserPositionsProps) => {
   const location = useLocation();
   const { requireWalletConnection } = useWalletConnection();
 
-  const closeVaultHandler = (vaultId: string) => {
-    // Check wallet connection first
-    if (!requireWalletConnection("close this vault")) {
-      return;
-    }
+  // const closeVaultHandler = (vaultId: string) => {
+  //   // Check wallet connection first
+  //   if (!requireWalletConnection("close this vault")) {
+  //     return;
+  //   }
 
-    const position = positions.find((p) => p.id === vaultId);
-    if (!position) return;
+  //   const position = positions.find((p) => p.id === vaultId);
+  //   if (!position) return;
 
-    closeVault(vaultId);
-    toast({
-      title: "Vault Closed Successfully",
-      description: `You received your original deposits plus ${position.lstbtcGenerated.toFixed(
-        6
-      )} lstBTC worth of earnings distributed as wBTC and stCORE.`,
-      variant: "default",
-    });
-  };
+  //   closeVault(vaultId);
+  //   toast({
+  //     title: "Vault Closed Successfully",
+  //     description: `You received your original deposits plus ${position.lstbtcGenerated.toFixed(
+  //       6
+  //     )} lstBTC worth of earnings distributed as wBTC and stCORE.`,
+  //     variant: "default",
+  //   });
+  // };
 
   // Show wallet connection required message if not connected
   if (!isWalletConnected || !isDataLoaded) {
@@ -102,14 +102,14 @@ const UserPositions = ({ limit }: UserPositionsProps) => {
                 <span className="text-sm text-gold font-medium">
                   {position.apy}
                 </span>
-                <Button
+                {/* <Button
                   variant="outline"
                   size="sm"
                   onClick={() => closeVaultHandler(position.id)}
                   className="text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200"
                 >
                   <Trash className="w-4 h-4" />
-                </Button>
+                </Button> */}
               </div>
             </div>
           </CardHeader>
@@ -177,9 +177,11 @@ const UserPositions = ({ limit }: UserPositionsProps) => {
               <div className="flex items-center space-x-2">
                 <TrendingUp className="w-4 h-4 text-gold" />
                 <span className="text-sm font-medium text-gold">
-                  {(position.earnings /
-                    (position.currentValue - position.earnings)) *
-                    100}
+                  {(
+                    (position.earnings /
+                      (position.currentValue - position.earnings)) *
+                    100
+                  ).toFixed(2)}
                   % gain
                 </span>
               </div>
