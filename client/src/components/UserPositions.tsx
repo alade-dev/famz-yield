@@ -118,7 +118,7 @@ const UserPositions = ({ limit }: UserPositionsProps) => {
               <div>
                 <p className="text-sm text-muted-foreground">wBTC Deposited</p>
                 <p className="font-medium">
-                  {position.wbtcDeposited.toFixed(4)}
+                  {position.wbtcDeposited.toFixed(8)}
                 </p>
               </div>
               <div>
@@ -126,7 +126,7 @@ const UserPositions = ({ limit }: UserPositionsProps) => {
                   stCORE Deposited
                 </p>
                 <p className="font-medium">
-                  {position.stcoreDeposited.toFixed(4)}
+                  {position.stcoreDeposited.toFixed(5)}
                 </p>
               </div>
               <div>
@@ -134,7 +134,7 @@ const UserPositions = ({ limit }: UserPositionsProps) => {
                   lstBTC Generated
                 </p>
                 <p className="font-medium text-gold">
-                  {position.lstbtcGenerated.toFixed(6)}
+                  {position.lstbtcGenerated.toFixed(8)}
                 </p>
               </div>
               <div>
@@ -155,13 +155,13 @@ const UserPositions = ({ limit }: UserPositionsProps) => {
               <div>
                 <p className="text-sm text-muted-foreground">wBTC Earnings</p>
                 <p className="font-medium text-gold">
-                  +{position.wbtcEarnings.toFixed(6)}
+                  +{position.wbtcEarnings.toFixed(8)}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">stCORE Earnings</p>
                 <p className="font-medium text-gold">
-                  +{position.stcoreEarnings.toFixed(4)}
+                  +{position.stcoreEarnings.toFixed(5)}
                 </p>
               </div>
             </div>

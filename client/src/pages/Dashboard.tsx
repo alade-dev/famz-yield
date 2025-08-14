@@ -217,7 +217,7 @@ const Dashboard = () => {
                           <span className="text-sm">stCORE</span>
                         </div>
                         <span className="text-sm font-medium">
-                          {parseFloat(getFormattedBalance("stCORE")).toFixed(4)}
+                          {parseFloat(getFormattedBalance("stCORE")).toFixed(5)}
                         </span>
                       </div>
                     </div>
@@ -235,7 +235,7 @@ const Dashboard = () => {
                           <span className="text-sm">wBTC</span>
                         </div>
                         <span className="text-sm font-medium text-gold">
-                          +{getTotalWbtcEarnings().toFixed(6)}
+                          +{getTotalWbtcEarnings().toFixed(8)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between p-2 bg-gold/10 rounded">
@@ -244,7 +244,7 @@ const Dashboard = () => {
                           <span className="text-sm">stCORE</span>
                         </div>
                         <span className="text-sm font-medium text-gold">
-                          +{getTotalStcoreEarnings().toFixed(4)}
+                          +{getTotalStcoreEarnings().toFixed(5)}
                         </span>
                       </div>
                     </div>
@@ -262,11 +262,11 @@ const Dashboard = () => {
                         </div>
                         <div className="text-right">
                           <p className="font-medium">
-                            {totalWbtc.toFixed(6)} wBTC
+                            {totalWbtc.toLocaleString()} wBTC
                           </p>
-                          <p className="text-sm text-muted-foreground">
-                            ${(totalWbtc * 43000).toLocaleString()}
-                          </p>
+                          {/* <p className="text-sm text-muted-foreground">
+                            ${(totalWbtc * ).toLocaleString()}
+                          </p> */}
                         </div>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
@@ -278,11 +278,13 @@ const Dashboard = () => {
                           <p className="font-medium">
                             {totalStcore.toLocaleString()} stCORE
                           </p>
-                          <p className="text-sm text-muted-foreground">
+                          {/* <p className="text-sm text-muted-foreground">
                             ${totalStcore.toLocaleString()}
-                          </p>
+                          </p> */}
                         </div>
                       </div>
+                      {/* Token Balances */}
+                      <TokenBalances />
                     </div>
                   ) : (
                     <div className="text-center py-6">
@@ -360,9 +362,6 @@ const Dashboard = () => {
           )}
         </Card>
       </div>
-
-      {/* Token Balances */}
-      <TokenBalances />
 
       {/* Quick Actions */}
       <Card className="bg-gradient-vault border-vault-border">
