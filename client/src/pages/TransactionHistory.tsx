@@ -69,6 +69,15 @@ const TransactionHistoryPage = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Refresh transactions every 30 seconds to update epoch status
+  useEffect(() => {
+    const refreshInterval = setInterval(() => {
+      refreshTransactions();
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(refreshInterval);
+  }, [refreshTransactions]);
+
   const depositTransactions = transactions.filter(
     (tx): tx is DepositTransaction => tx.type === "deposit"
   );
@@ -113,7 +122,21 @@ const TransactionHistoryPage = () => {
     return `https://scan.test2.btcs.network/tx/${txHash}`;
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, transaction?: RedeemTransaction) => {
+    // For redeem transactions, check if epoch is reached
+    if (transaction && transaction.type === "redeem") {
+      if (transaction.tokensAvailable) {
+        return (
+          <Badge className="bg-green-500/20 text-green-500">Completed</Badge>
+        );
+      } else {
+        return (
+          <Badge className="bg-yellow-500/20 text-yellow-500">Pending</Badge>
+        );
+      }
+    }
+
+    // For other transactions, use the original status
     switch (status) {
       case "completed":
         return (
@@ -409,7 +432,10 @@ interface RedeemTransactionsTableProps {
   formatTimeRemaining: (epochEndTime: number) => string;
   copyToClipboard: (text: string, label: string) => void;
   getBlockExplorerUrl: (txHash: string) => string;
-  getStatusBadge: (status: string) => React.ReactNode;
+  getStatusBadge: (
+    status: string,
+    transaction?: RedeemTransaction
+  ) => React.ReactNode;
   currentTime: number;
 }
 
@@ -483,7 +509,7 @@ const RedeemTransactionsTable: React.FC<RedeemTransactionsTableProps> = ({
               )}
             </div>
           </TableCell>
-          <TableCell>{getStatusBadge(tx.status)}</TableCell>
+          <TableCell>{getStatusBadge(tx.status, tx)}</TableCell>
           <TableCell>
             <div className="flex items-center space-x-2">
               <Button

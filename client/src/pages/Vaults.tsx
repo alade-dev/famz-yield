@@ -858,7 +858,7 @@ const Vaults = () => {
         epochRound: redeemInfo.epochRound,
         epochEndTime: redeemInfo.epochEndTime,
         tokensAvailable: redeemInfo.tokensAvailable,
-        status: "completed",
+        status: redeemInfo.tokensAvailable ? "completed" : "pending",
       });
 
       // Show success modal

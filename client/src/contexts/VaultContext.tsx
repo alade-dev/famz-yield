@@ -592,9 +592,17 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         if (tx.type === "redeem") {
           const redeemTx = tx as RedeemTransaction;
           const updatedInfo = calculateRedeemAvailability(redeemTx.timestamp);
+
+          // Update status to completed if tokens are now available
+          let newStatus = redeemTx.status;
+          if (updatedInfo.tokensAvailable && redeemTx.status === "pending") {
+            newStatus = "completed";
+          }
+
           return {
             ...redeemTx,
             tokensAvailable: updatedInfo.tokensAvailable,
+            status: newStatus,
           };
         }
         return tx;
