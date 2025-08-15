@@ -100,7 +100,7 @@ const UserPositions = ({ limit }: UserPositionsProps) => {
               <CardTitle className="text-lg">{position.vaultName}</CardTitle>
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gold font-medium">
-                  {position.apy}
+                  {position.apy}%
                 </span>
                 {/* <Button
                   variant="outline"
