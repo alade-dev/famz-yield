@@ -110,7 +110,7 @@ const TransactionHistoryPage = () => {
 
   const getBlockExplorerUrl = (txHash: string) => {
     // Core testnet block explorer
-    return `https://scan.test.btcs.network/tx/${txHash}`;
+    return `https://scan.test2.btcs.network/tx/${txHash}`;
   };
 
   const getStatusBadge = (status: string) => {
