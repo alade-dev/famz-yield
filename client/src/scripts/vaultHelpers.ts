@@ -649,6 +649,25 @@ export const simulateRedeemWithChecks = async (
       throw new Error(`Redeem requirements not met:\n${issues.join("\n")}`);
     }
 
+    // Checks if the vault has allowance for it
+    //if not approve the vault to spend lstBTC
+    const lstbtcAllowance = await readContract(config, {
+      address: CONTRACT_ADDRESSES[1114].LST_BTC as Address,
+      abi: ERC20_ABI,
+      functionName: "allowance",
+      args: [userAddress, CONTRACT_ADDRESSES[1114].VAULT as Address],
+    });
+    if ((lstbtcAllowance as bigint) < lstbtcAmountBN) {
+      //approve the vault to spend lstBTC
+      const approvalResult = await writeContract(config, {
+        address: CONTRACT_ADDRESSES[1114].LST_BTC as Address,
+        abi: ERC20_ABI,
+        functionName: "approve",
+        args: [CONTRACT_ADDRESSES[1114].VAULT as Address, lstbtcAmountBN],
+      });
+      console.log("lstBTC approved for vault:", approvalResult);
+    }
+
     // Simulate the actual redeem
     const result = await simulateContract(config, {
       address: CONTRACT_ADDRESSES[1114].VAULT as Address,
