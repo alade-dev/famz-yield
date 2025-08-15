@@ -7,18 +7,18 @@ require("dotenv").config();
  */
 
 const DEPLOYED_CONTRACTS = {
-  wBTC: "0x546a07F7E5Ec6EAf22201486b4116cF87aE170aa",
+  wBTC: "0x93Bcf7AAC147Ff2827911c81C4A2d50c5048D8D8",
   stCORE: "0x6401f24EF7C54032f4F54E67492928973Ab87650", // Real testnet stCORE
-  lstBTC: "0xf47c98abA1a4c4eB778991AeE7Ea889a977fEA3E",
-  custodian: "0x507b00ad0e362C9C6Bc6Fe044F3c062f15C2FC5A",
-  vault: "0x6924a3828952867F713D25a949D34B81c9836653",
-  priceOracle: "0x0e3EB58b29CB991F9DFf00318b6449021A7cd943"
+  lstBTC: "0xC8A4844b86d211D555025c77475F608f26ADEd7d",
+  custodian: "0xc4530f6eBBf748DE7c2F5fD6C64387cC76bc6814",
+  vault: "0xc57A7a43cFCF981bFc9448c18F69c7DEa6eD6ae7",
+  priceOracle: "0xF2EA8F4100540BFe66eef135f7c43B6938eD4D65"
 };
 
 const TESTNET_CONFIG = {
   prices: {
-    CORE_BTC: ethers.parseEther("0.00000864"), // CORE/BTC = 0.00000864
-    stCORE_CORE: ethers.parseEther("1.420689")  // stCORE/CORE = 1.420689
+    CORE_BTC: ethers.parseEther("0.00000647"), // CORE/BTC = 0.00000647
+    stCORE_CORE: ethers.parseEther("1.424814")  // stCORE/CORE = 1.424814
   }
 };
 
@@ -70,7 +70,7 @@ async function testDepositAndWithdraw(contracts) {
 
   // Test amounts
   const wBTCAmount = ethers.parseUnits("0.02", 8); // 0.02 wBTC (8 decimals)
-  const stCOREAmount = ethers.parseEther("10"); // 10 stCORE
+  const stCOREAmount = ethers.parseEther("5"); // 5 stCORE
 
   console.log("💰 Minting test wBTC tokens...");
   try {
@@ -212,13 +212,35 @@ try {
   
   console.log(`📤 Redeeming: ${ethers.formatEther(redeemAmount)} lstBTC`);
   
+  // First approve the vault to spend lstBTC tokens
+  console.log("🔓 Approving lstBTC for withdrawal...");
+  try {
+    const approveTx = await contracts.lstBTC.approve(await contracts.vault.getAddress(), redeemAmount);
+    await approveTx.wait();
+    console.log("✅ lstBTC approved for withdrawal");
+  } catch (error) {
+    console.log("❌ lstBTC approval failed:", error.message);
+    return;
+  }
+  
   try {
     const redeemTx = await contracts.vault.redeem(redeemAmount, DEPLOYED_CONTRACTS.stCORE);
     await redeemTx.wait();
-    console.log("✅ Withdrawal successful!");
+    console.log("✅ Withdrawal queued successfully!");
+    console.log("ℹ️  Note: Standard redemption is queued and will be processed at next epoch end");
   } catch (error) {
     console.log("❌ Withdrawal failed:", error.message);
-    return;
+    
+    // If standard redemption fails, suggest emergency redemption
+    console.log("\n🚨 Trying emergency redemption as alternative...");
+    try {
+      const emergencyTx = await contracts.vault.emergencyRedeem(redeemAmount, DEPLOYED_CONTRACTS.stCORE);
+      await emergencyTx.wait();
+      console.log("✅ Emergency withdrawal successful (with 1% fee)!");
+    } catch (emergencyError) {
+      console.log("❌ Emergency withdrawal also failed:", emergencyError.message);
+      return;
+    }
   }
 
   // Check final balances
