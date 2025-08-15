@@ -36,6 +36,9 @@ import {
   simulateRedeemWithChecks,
   calculateRedeemOutput,
   executeRedeem as executeVaultRedeem,
+  checkLstBTCApproval,
+  approveLstBTC,
+  checkRedeemApprovals,
 } from "@/scripts/vaultHelpers";
 import { btcPriceCache } from "@/scripts/priceApi";
 import TransactionSuccessModal from "@/components/TransactionSuccessModal";
@@ -728,6 +731,37 @@ const Vaults = () => {
           variant: "destructive",
         });
         return;
+      }
+
+      // Check if lstBTC approval is needed
+      const approvalCheck = await checkRedeemApprovals(lstbtcAmount);
+
+      if (approvalCheck.needsLstBTCApproval) {
+        toast({
+          title: "Approval Required",
+          description: `Please approve ${lstbtcAmount} lstBTC spending in your wallet...`,
+        });
+
+        try {
+          const approvalTx = await approveLstBTC(lstbtcAmount);
+
+          toast({
+            title: "lstBTC Approved",
+            description: `Approval transaction: ${approvalTx}`,
+          });
+
+          // Wait a moment for the approval to be processed
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        } catch (approvalError) {
+          console.error("lstBTC approval failed:", approvalError);
+          toast({
+            title: "lstBTC Approval Failed",
+            description:
+              (approvalError as Error)?.message || "Failed to approve lstBTC",
+            variant: "destructive",
+          });
+          return;
+        }
       }
 
       toast({

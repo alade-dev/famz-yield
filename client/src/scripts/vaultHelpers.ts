@@ -1,4 +1,9 @@
-import { readContract, writeContract, simulateContract } from "@wagmi/core";
+import {
+  readContract,
+  writeContract,
+  simulateContract,
+  getAccount,
+} from "@wagmi/core";
 import { parseUnits, formatUnits, Address } from "viem";
 import { config } from "@/config/wagmi";
 import {
@@ -694,20 +699,216 @@ export const simulateRedeemWithChecks = async (
 };
 
 /**
+ * Check all approvals needed for redeem
+ */
+export const checkRedeemApprovals = async (lstbtcAmount: string) => {
+  try {
+    const { address } = await getAccount(config);
+    if (!address) {
+      throw new Error("No wallet connected");
+    }
+
+    const lstbtcAmountBN = parseUnits(lstbtcAmount, 18);
+
+    // Check lstBTC allowance
+    const lstbtcAllowance = (await readContract(config, {
+      address: CONTRACT_ADDRESSES[1114].LST_BTC as Address,
+      abi: [
+        {
+          name: "allowance",
+          type: "function",
+          stateMutability: "view",
+          inputs: [
+            { name: "owner", type: "address" },
+            { name: "spender", type: "address" },
+          ],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+      ],
+      functionName: "allowance",
+      args: [address, CONTRACT_ADDRESSES[1114].VAULT as Address],
+    })) as bigint;
+
+    const needsLstBTCApproval = lstbtcAllowance < lstbtcAmountBN;
+
+    // console.log("Redeem Approval Check:", {
+    //   userAddress: address,
+    //   vaultAddress: CONTRACT_ADDRESSES[1114].VAULT,
+    //   lstbtcAllowance: lstbtcAllowance.toString(),
+    //   requiredAmount: lstbtcAmountBN.toString(),
+    //   needsLstBTCApproval,
+    // });
+
+    return {
+      needsLstBTCApproval,
+      lstbtcAllowance,
+      requiredAmount: lstbtcAmountBN,
+    };
+  } catch (error) {
+    console.error("Error checking redeem approvals:", error);
+    throw error;
+  }
+};
+
+/**
+ * Check if lstBTC approval is needed for redeem
+ */
+export const checkLstBTCApproval = async (lstbtcAmount: string) => {
+  try {
+    const { address } = await getAccount(config);
+    if (!address) {
+      throw new Error("No wallet connected");
+    }
+
+    const lstbtcAmountBN = parseUnits(lstbtcAmount, 18);
+
+    // Check current allowance
+    const allowance = (await readContract(config, {
+      address: CONTRACT_ADDRESSES[1114].LST_BTC as Address,
+      abi: [
+        {
+          name: "allowance",
+          type: "function",
+          stateMutability: "view",
+          inputs: [
+            { name: "owner", type: "address" },
+            { name: "spender", type: "address" },
+          ],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+      ],
+      functionName: "allowance",
+      args: [address, CONTRACT_ADDRESSES[1114].VAULT as Address],
+    })) as bigint;
+
+    const needsApproval = allowance < lstbtcAmountBN;
+
+    // console.log("lstBTC Approval Check:", {
+    //   userAddress: address,
+    //   vaultAddress: CONTRACT_ADDRESSES[1114].VAULT,
+    //   currentAllowance: allowance.toString(),
+    //   requiredAmount: lstbtcAmountBN.toString(),
+    //   needsApproval,
+    // });
+
+    return {
+      needsApproval,
+      currentAllowance: allowance,
+      requiredAmount: lstbtcAmountBN,
+    };
+  } catch (error) {
+    console.error("Error checking lstBTC approval:", error);
+    throw error;
+  }
+};
+
+/**
+ * Approve lstBTC spending for redeem
+ */
+export const approveLstBTC = async (lstbtcAmount: string) => {
+  try {
+    const { address } = await getAccount(config);
+    if (!address) {
+      throw new Error("No wallet connected");
+    }
+
+    const lstbtcAmountBN = parseUnits(lstbtcAmount, 18);
+
+    // console.log("Approving lstBTC for redeem:", {
+    //   userAddress: address,
+    //   vaultAddress: CONTRACT_ADDRESSES[1114].VAULT,
+    //   amount: lstbtcAmountBN.toString(),
+    // });
+
+    const result = await writeContract(config, {
+      address: CONTRACT_ADDRESSES[1114].LST_BTC as Address,
+      abi: [
+        {
+          name: "approve",
+          type: "function",
+          stateMutability: "nonpayable",
+          inputs: [
+            { name: "spender", type: "address" },
+            { name: "amount", type: "uint256" },
+          ],
+          outputs: [{ name: "", type: "bool" }],
+        },
+      ],
+      functionName: "approve",
+      args: [CONTRACT_ADDRESSES[1114].VAULT as Address, lstbtcAmountBN],
+    });
+
+    // console.log("lstBTC approval transaction submitted:", result);
+    return result;
+  } catch (error) {
+    console.error("Error approving lstBTC:", error);
+    throw error;
+  }
+};
+
+/**
  * Execute redeem after all checks pass
  */
 export const executeRedeem = async (lstbtcAmount: string) => {
   try {
+    const { address } = await getAccount(config);
+    if (!address) {
+      throw new Error("No wallet connected");
+    }
+
+    const lstbtcAmountBN = parseUnits(lstbtcAmount, 18);
+
+    // Check lstBTC balance
+    const lstbtcBalance = (await readContract(config, {
+      address: CONTRACT_ADDRESSES[1114].LST_BTC as Address,
+      abi: [
+        {
+          name: "balanceOf",
+          type: "function",
+          stateMutability: "view",
+          inputs: [{ name: "account", type: "address" }],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+      ],
+      functionName: "balanceOf",
+      args: [address],
+    })) as bigint;
+
+    if (lstbtcBalance < lstbtcAmountBN) {
+      throw new Error(
+        `Insufficient lstBTC balance. Have: ${formatUnits(
+          lstbtcBalance,
+          18
+        )}, Need: ${lstbtcAmount}`
+      );
+    }
+
+    // Check if approval is needed
+    const approvalCheck = await checkLstBTCApproval(lstbtcAmount);
+
+    if (approvalCheck.needsApproval) {
+      throw new Error(
+        "lstBTC approval required. Please approve lstBTC spending first."
+      );
+    }
+
+    // console.log("Executing redeem with parameters:", {
+    //   userAddress: address,
+    //   lstbtcAmount,
+    //   lstbtcAmountBN: lstbtcAmountBN.toString(),
+    //   lstbtcBalance: lstbtcBalance.toString(),
+    //   vaultAddress: CONTRACT_ADDRESSES[1114].VAULT,
+    //   stcoreAddress: CONTRACT_ADDRESSES[1114].ST_CORE,
+    // });
+
     const result = await writeContract(config, {
       address: CONTRACT_ADDRESSES[1114].VAULT as Address,
       abi: VAULT_ABI,
       functionName: "redeem",
-      args: [
-        parseUnits(lstbtcAmount, 18),
-        CONTRACT_ADDRESSES[1114].ST_CORE as Address,
-      ],
+      args: [lstbtcAmountBN, CONTRACT_ADDRESSES[1114].ST_CORE as Address],
     });
 
+    // console.log("Redeem transaction submitted:", result);
     return result;
   } catch (error) {
     console.error("Error executing redeem:", error);
