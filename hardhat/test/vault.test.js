@@ -272,6 +272,46 @@ describe("Famz Vault - Final Unified Test Suite", function () {
       expect(balance2Epoch2After).to.be.gt(balance2Epoch2Before);
     });
 
+    it("Should handle deposit and immediate redemption in same epoch (BUG FIX VERIFIED)", async function () {
+      console.log("\n✅ === EPOCH 1 DEPOSIT + IMMEDIATE REDEMPTION FIX TEST ===");
+      
+      // Verify we're in epoch 1
+      expect(await vault.currentEpoch()).to.equal(1n);
+      console.log("📅 Current epoch: 1");
+      
+      // User deposits in epoch 1
+      console.log("💳 User1 deposits in epoch 1...");
+      await makeDeposit(user1);
+      
+      const lstBTCBalance = await lstBTC.balanceOf(user1.address);
+      console.log(`✅ User received: ${ethers.formatEther(lstBTCBalance)} lstBTC`);
+      console.log(`🎯 User eligible from epoch: ${await vault.userFirstDepositEpoch(user1.address)}`);
+      
+      // Try to redeem half immediately in same epoch
+      const redeemAmount = lstBTCBalance / 2n;
+      console.log(`💸 Trying to redeem: ${ethers.formatEther(redeemAmount)} lstBTC in same epoch...`);
+      
+      await lstBTC.connect(user1).approve(await vault.getAddress(), redeemAmount);
+      
+      // This should now SUCCEED (bug has been fixed!)
+      const tx = await vault.connect(user1).redeem(redeemAmount, await stCORE.getAddress());
+      await expect(tx).to.emit(vault, "RedemptionQueued");
+      
+      console.log("✅ Standard redemption works - BUG HAS BEEN FIXED!");
+      
+      // Verify user balance was reduced correctly
+      const newBalance = await lstBTC.balanceOf(user1.address);
+      const expectedBalance = lstBTCBalance - redeemAmount;
+      expect(newBalance).to.equal(expectedBalance);
+      
+      // Verify vault holds the redeemed tokens
+      const vaultBalance = await lstBTC.balanceOf(await vault.getAddress());
+      expect(vaultBalance).to.equal(redeemAmount);
+      
+      console.log("✅ Token balances updated correctly");
+      console.log("🎉 FIX CONFIRMED: Same-epoch redemption now works perfectly!");
+    });
+
     it("Should distribute yield proportionally among eligible users", async function () {
       // Complete epoch 1 (no yield for new depositors)
       await completeEpochWithYield();
