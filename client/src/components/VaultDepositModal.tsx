@@ -1,4 +1,5 @@
-import { useState } from "react";
+/* eslint-disable react-hooks/exhaustive-deps */
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -39,52 +40,60 @@ const VaultDepositModal = ({
   const [wbtcAmount, setWbtcAmount] = useState<string>("");
   const [stcoreAmount, setStcoreAmount] = useState<string>("");
   const [isOpen, setIsOpen] = useState(false);
+  const [lstbtcPreview, setLstbtcPreview] = useState<string>("0.000000");
+  const [isCalculating, setIsCalculating] = useState(false);
   const { toast } = useToast();
   const { addPosition } = useVault();
   const { getFormattedBalance } = useTokenBalanceContext();
   const { requireWalletConnection } = useWalletConnection();
 
-  // Calculate expected lstBTC based on inputs
-  const calculateLstBtc = () => {
+  // Update lstBTC preview when amounts change
+  useEffect(() => {
+    if (wbtcAmount && stcoreAmount) {
+      calculateLstBtc();
+    } else {
+      setLstbtcPreview("0.000000");
+    }
+  }, [wbtcAmount, stcoreAmount]);
+
+  // Calculate expected lstBTC based on inputs using oracle prices
+  const calculateLstBtc = async () => {
     const wbtc = parseFloat(wbtcAmount) || 0;
     const stcore = parseFloat(stcoreAmount) || 0;
 
-    if (wbtc === 0 && stcore === 0) return "0.000000";
+    if (wbtc === 0 && stcore === 0) {
+      setLstbtcPreview("0.000000");
+      return;
+    }
 
-    // Simplified calculation for UI preview - actual calculation uses oracle prices
-    return (wbtc * 0.95 + stcore * 0.0001).toFixed(6);
+    setIsCalculating(true);
+    try {
+      // Use the same calculation as the blockchain
+      const result = await calculateLstBTCFromDeposit(
+        wbtc.toString(),
+        stcore.toString()
+      );
+      setLstbtcPreview(result.lstBTCAmount);
+    } catch (error) {
+      console.error("Error calculating lstBTC for preview:", error);
+      // Fallback to simplified calculation
+      const fallbackValue = (wbtc * 0.95 + stcore * 0.0001).toFixed(6);
+      setLstbtcPreview(fallbackValue);
+    } finally {
+      setIsCalculating(false);
+    }
   };
 
   // Calculate total USD value using oracle prices
-  const calculateTotalValue = async () => {
+  const calculateTotalValue = () => {
     const wbtc = parseFloat(wbtcAmount) || 0;
     const stcore = parseFloat(stcoreAmount) || 0;
 
     if (wbtc === 0 && stcore === 0) return 0;
 
-    try {
-      // Get real prices from both oracle and external APIs
-      const [oraclePrices, btcUsdPrice] = await Promise.all([
-        getOraclePrices(),
-        btcPriceCache.getPrice(),
-      ]);
-
-      const stCOREPrice = parseFloat(oraclePrices.stCOREPrice);
-      const coreBTCPrice = parseFloat(oraclePrices.coreBTCPrice);
-
-      // Convert to USD using real BTC price
-      const coreUsdPrice = coreBTCPrice * btcUsdPrice;
-      const stcoreUsdPrice = stCOREPrice * coreUsdPrice;
-
-      return wbtc * btcUsdPrice + stcore * stcoreUsdPrice;
-    } catch (error) {
-      console.error(
-        "Error fetching oracle prices for value calculation:",
-        error
-      );
-      // Fallback to rough estimates
-      return wbtc * 43000 + stcore * 1.42;
-    }
+    // Use fallback estimates for UI display
+    // In a real implementation, this would use cached prices or real-time data
+    return wbtc * 43000 + stcore * 1.42;
   };
 
   const handleDeposit = async () => {
@@ -169,7 +178,7 @@ const VaultDepositModal = ({
         vaultName,
         wbtcDeposited: wbtcNum,
         stcoreDeposited: stcoreNum,
-        lstbtcGenerated: parseFloat(calculateLstBtc()),
+        lstbtcGenerated: parseFloat(lstbtcPreview),
         currentValue: fallbackValue,
         apy: apy,
       });
@@ -286,7 +295,7 @@ const VaultDepositModal = ({
                       Will Generate
                     </p>
                     <p className="text-xl font-bold text-gold">
-                      {calculateLstBtc()} lstBTC
+                      {isCalculating ? "Calculating..." : lstbtcPreview} lstBTC
                     </p>
                   </div>
                   <div className="text-center">

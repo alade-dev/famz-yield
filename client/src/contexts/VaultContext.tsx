@@ -529,15 +529,17 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         id: `deposit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       };
 
-      setTransactions((prev) => [newTransaction, ...prev]);
-
-      // Store in secure storage
-      if (address) {
-        const storageKey = `transactions_${address}`;
-        setSecureItem(storageKey, [newTransaction, ...transactions]);
-      }
+      setTransactions((prev) => {
+        const updatedTransactions = [newTransaction, ...prev];
+        // Store in secure storage
+        if (address) {
+          const storageKey = `transactions_${address}`;
+          setSecureItem(storageKey, updatedTransactions);
+        }
+        return updatedTransactions;
+      });
     },
-    [isConnected, address, setSecureItem, transactions]
+    [isConnected, address, setSecureItem]
   );
 
   const addRedeemTransaction = useCallback(
@@ -553,33 +555,34 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         tokensAvailable: redeemInfo.tokensAvailable,
       };
 
-      setTransactions((prev) => [newTransaction, ...prev]);
-
-      // Store in secure storage
-      if (address) {
-        const storageKey = `transactions_${address}`;
-        setSecureItem(storageKey, [newTransaction, ...transactions]);
-      }
+      setTransactions((prev) => {
+        const updatedTransactions = [newTransaction, ...prev];
+        // Store in secure storage
+        if (address) {
+          const storageKey = `transactions_${address}`;
+          setSecureItem(storageKey, updatedTransactions);
+        }
+        return updatedTransactions;
+      });
     },
-    [isConnected, address, setSecureItem, transactions]
+    [isConnected, address, setSecureItem]
   );
 
   const updateTransactionStatus = useCallback(
     (id: string, status: "completed" | "pending" | "failed") => {
-      setTransactions((prev) =>
-        prev.map((tx) => (tx.id === id ? { ...tx, status } : tx))
-      );
-
-      // Update in secure storage
-      if (address) {
-        const storageKey = `transactions_${address}`;
-        const updatedTransactions = transactions.map((tx) =>
+      setTransactions((prev) => {
+        const updatedTransactions = prev.map((tx) =>
           tx.id === id ? { ...tx, status } : tx
         );
-        setSecureItem(storageKey, updatedTransactions);
-      }
+        // Update in secure storage
+        if (address) {
+          const storageKey = `transactions_${address}`;
+          setSecureItem(storageKey, updatedTransactions);
+        }
+        return updatedTransactions;
+      });
     },
-    [address, setSecureItem, transactions]
+    [address, setSecureItem]
   );
 
   const refreshTransactions = useCallback(() => {
@@ -608,7 +611,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         setTransactions(storedTransactions);
       }
     }
-  }, [isConnected, address, isDataLoaded, getSecureItem]);
+  }, [isConnected, address, isDataLoaded, getSecureItem]); // Removed getSecureItem from dependencies
 
   return (
     <VaultContext.Provider

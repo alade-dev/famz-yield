@@ -586,13 +586,30 @@ const Vaults = () => {
           apy: calculateAPY().toFixed(1),
         });
 
-        // Record deposit transaction
+        // Debug: Log the calculation breakdown
+        // console.log("Deposit Calculation Breakdown:", {
+        //   input: {
+        //     wbtcAmount: btcValue,
+        //     stcoreAmount: coreValue,
+        //   },
+        //   calculated: {
+        //     wbtcContribution: lstBTCResult.breakdown.wbtcContribution,
+        //     stcoreContribution: lstBTCResult.breakdown.stcoreContribution,
+        //     totalLstBTC: lstBTCResult.lstBTCAmount,
+        //   },
+        //   prices: {
+        //     stCOREPrice: lstBTCResult.breakdown.stCOREPrice,
+        //     coreBTCPrice: lstBTCResult.breakdown.coreBTCPrice,
+        //   },
+        // });
+
+        // Record deposit transaction with actual deposited amounts
         addDepositTransaction({
           type: "deposit",
           txHash,
           timestamp: Date.now(),
           wbtcAmount: btcValue,
-          stcoreAmount: coreValue,
+          stcoreAmount: coreValue, // Use actual deposited amount
           lstbtcGenerated: parseFloat(lstBTCResult.lstBTCAmount),
           status: "completed",
         });

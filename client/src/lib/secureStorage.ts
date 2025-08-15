@@ -1,4 +1,5 @@
 import { useAccount } from "wagmi";
+import { useCallback } from "react";
 
 // Simple encryption/decryption using base64 and wallet address as key
 const encryptData = (data: string, walletAddress: string): string => {
@@ -142,40 +143,50 @@ export class SecureStorage {
 export const useSecureStorage = () => {
   const { address, isConnected } = useAccount();
 
-  const setSecureItem = <T>(key: string, value: T) => {
-    if (!isConnected || !address) {
-      console.warn("Cannot store data: wallet not connected");
-      return;
-    }
-    SecureStorage.setItem(key, value, address);
-  };
+  const setSecureItem = useCallback(
+    <T>(key: string, value: T) => {
+      if (!isConnected || !address) {
+        console.warn("Cannot store data: wallet not connected");
+        return;
+      }
+      SecureStorage.setItem(key, value, address);
+    },
+    [isConnected, address]
+  );
 
-  const getSecureItem = <T>(
-    key: string,
-    defaultValue: T,
-    expectedStructure?: unknown
-  ): T => {
-    if (!isConnected || !address) {
-      return defaultValue;
-    }
-    return SecureStorage.getItem(key, address, defaultValue, expectedStructure);
-  };
+  const getSecureItem = useCallback(
+    <T>(key: string, defaultValue: T, expectedStructure?: unknown): T => {
+      if (!isConnected || !address) {
+        return defaultValue;
+      }
+      return SecureStorage.getItem(
+        key,
+        address,
+        defaultValue,
+        expectedStructure
+      );
+    },
+    [isConnected, address]
+  );
 
-  const removeSecureItem = (key: string) => {
-    if (!isConnected || !address) {
-      console.warn("Cannot remove data: wallet not connected");
-      return;
-    }
-    SecureStorage.removeItem(key, address);
-  };
+  const removeSecureItem = useCallback(
+    (key: string) => {
+      if (!isConnected || !address) {
+        console.warn("Cannot remove data: wallet not connected");
+        return;
+      }
+      SecureStorage.removeItem(key, address);
+    },
+    [isConnected, address]
+  );
 
-  const clearUserData = () => {
+  const clearUserData = useCallback(() => {
     if (!isConnected || !address) {
       console.warn("Cannot clear data: wallet not connected");
       return;
     }
     SecureStorage.clearUserData(address);
-  };
+  }, [isConnected, address]);
 
   return {
     setSecureItem,
