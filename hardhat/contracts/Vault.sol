@@ -337,6 +337,11 @@ contract Vault is Ownable, ReentrancyGuard {
         // Record deposit in the current epoch
         EpochData storage epoch = epochData[currentEpoch];
         epoch.totalDepositedInBTC += lstBTCMinted;
+        
+        // Record individual user deposit data for this epoch
+        epoch.deposits[msg.sender].wBTC += amountWBTC;
+        epoch.deposits[msg.sender].stCORE += amountStCORE;
+        epoch.deposits[msg.sender].lstBTCMinted += lstBTCMinted;
 
         if (!hasDepositor[msg.sender]) {
             hasDepositor[msg.sender] = true;
@@ -513,8 +518,12 @@ contract Vault is Ownable, ReentrancyGuard {
      */
     function _endCurrentEpoch() internal {
         EpochData storage epoch = epochData[currentEpoch];
-        require(epoch.wBTCYield > 0 || epoch.stCOREYield > 0, "Vault: no yield to distribute for this epoch");
-        require(epoch.totalDepositedInBTC > 0, "Vault: no deposits in this epoch");
+        
+        // Skip if no yield to distribute
+        if (epoch.wBTCYield == 0 && epoch.stCOREYield == 0) {
+            emit EpochEnded(currentEpoch, 0, 0, 0);
+            return;
+        }
 
         // --- Calculate Total Yield in BTC ---
         (uint256 price_stCORE_CORE, uint256 price_CORE_BTC) = custodian.getPriceInfo();
@@ -527,27 +536,8 @@ contract Vault is Ownable, ReentrancyGuard {
         uint256 totalYieldInBTC = epoch.wBTCYield + stCOREInBTC;
         epoch.totalYieldInBTC = totalYieldInBTC;
 
-        // --- Distribute Yield to Participants ---
-        address[] memory participants = _getParticipants(currentEpoch);
-        uint256[] memory amounts = new uint256[](participants.length);
-
-        for (uint256 i = 0; i < participants.length; i++) {
-            address user = participants[i];
-            DepositData memory userDeposit = epoch.deposits[user];
-            uint256 userDepositedInBTC = VaultMath.calculateLstBTCToMint(
-                userDeposit.wBTC,
-                userDeposit.stCORE,
-                price_stCORE_CORE,
-                price_CORE_BTC
-            );
-
-            // Calculate user's share of the total yield
-            uint256 userYield = (userDepositedInBTC * totalYieldInBTC) / epoch.totalDepositedInBTC;
-            amounts[i] = userYield;
-        }
-
-        // Mint and distribute lstBTC
-        lstBTC.distributeYield(participants, amounts);
+        // --- Distribute Yield to Balance Holders (not just epoch participants) ---
+        _distributeYieldProportionally(totalYieldInBTC);
 
         // --- Process Redemptions ---
         _processRedemptions(currentEpoch);
