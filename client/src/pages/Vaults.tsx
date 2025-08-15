@@ -628,22 +628,22 @@ const Vaults = () => {
           description: "Validating redeem requirements...",
         });
 
-        // Simulate redeem to check for errors
-        const redeemSimulation = await simulateRedeemWithChecks(
-          address,
-          lstbtcAmount
-        );
+        // // Simulate redeem to check for errors
+        // const redeemSimulation = await simulateRedeemWithChecks(
+        //   address,
+        //   lstbtcAmount
+        // );
 
-        if (!redeemSimulation.success) {
-          toast({
-            title: "Redeem Requirements Not Met",
-            description:
-              (redeemSimulation.error as Error)?.message ||
-              "Unknown error occurred",
-            variant: "destructive",
-          });
-          return;
-        }
+        // if (!redeemSimulation.success) {
+        //   toast({
+        //     title: "Redeem Requirements Not Met",
+        //     description:
+        //       (redeemSimulation.error as Error)?.message ||
+        //       "Unknown error occurred",
+        //     variant: "destructive",
+        //   });
+        //   return;
+        // }
 
         // console.log("Redeem simulation successful:", redeemSimulation.result);
 

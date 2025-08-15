@@ -380,7 +380,7 @@ export const getOraclePrices = async () => {
     console.error("Error getting oracle prices from contract:", error);
 
     // Fallback to testnet configuration values if oracle fails
-    console.log("Falling back to testnet configuration values");
+    // console.log("Falling back to testnet configuration values");
     return {
       stCOREPrice: TESTNET_CONFIG.prices.stCORE_CORE,
       coreBTCPrice: TESTNET_CONFIG.prices.CORE_BTC,
