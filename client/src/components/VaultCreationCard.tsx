@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Vault, ArrowRight, Sparkles } from "lucide-react";
+import { Plus, Vault, ArrowRight, Sparkles, History } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const VaultCreationCard = () => {
@@ -52,13 +52,25 @@ const VaultCreationCard = () => {
           </div>
         </div>
 
-        <Link to="/vaults">
-          <Button variant="default" className="w-full mt-3 md:mt-6 group">
-            <Plus className="w-4 h-4 mr-2" />
-            <span>Create Vault</span>
-            <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-          </Button>
-        </Link>
+        <div className="space-y-5">
+          <Link to="/vaults">
+            <Button variant="default" className="w-full group">
+              <Plus className="w-4 h-4 mr-2" />
+              <span>Create Vault</span>
+              <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+            </Button>
+          </Link>
+
+          <Link to="/transactions">
+            <Button
+              variant="outline"
+              className="w-full mt-5 hover:bg-vault-card/50 hover:text-gold "
+            >
+              <History className="w-4 h-4 mr-2" />
+              Transaction History
+            </Button>
+          </Link>
+        </div>
       </CardContent>
     </Card>
   );

@@ -310,8 +310,8 @@ export const getLastUpdated = async (config, tokenAddress) => {
     const result = await readContract(config, {
       address: CONTRACTS.PRICE_ORACLE as Address,
       abi: PRICE_ORACLE_ABI,
-      functionName: "getLastUpdated",
-      args: [tokenAddress],
+      functionName: "latestRoundData",
+      args: [],
     });
     return Number(result);
   } catch (error) {
@@ -442,7 +442,7 @@ export const setTokenPrice = async (config, tokenAddress, price) => {
     const result = await writeContract(config, {
       address: CONTRACTS.PRICE_ORACLE as Address,
       abi: PRICE_ORACLE_ABI,
-      functionName: "setPrice",
+      functionName: "updatePrice",
       args: [tokenAddress, parseUnits(price.toString(), 18)],
     });
     return result;

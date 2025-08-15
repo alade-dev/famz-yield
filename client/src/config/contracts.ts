@@ -12,6 +12,11 @@ export const CONTRACT_ADDRESSES = {
   // Add other networks as needed
 } as const;
 
+// Special addresses
+export const SPECIAL_ADDRESSES = {
+  CORE_NATIVE: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", // Native CORE token address
+} as const;
+
 // Testnet configuration
 export const TESTNET_CONFIG = {
   prices: {

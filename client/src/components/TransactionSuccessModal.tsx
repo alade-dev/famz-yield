@@ -72,7 +72,7 @@ const TransactionSuccessModal: React.FC<TransactionSuccessModalProps> = ({
 
           {/* Transaction Hash */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
+            <label className="text-sm font-medium text-gray-300">
               Transaction Hash:
             </label>
             <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
@@ -85,7 +85,7 @@ const TransactionSuccessModal: React.FC<TransactionSuccessModalProps> = ({
                 onClick={() => copyToClipboard(txHash)}
                 className="shrink-0"
               >
-                <Copy className="h-4 w-4" />
+                <Copy className="h-4 w-4 text-black" />
               </Button>
             </div>
           </div>

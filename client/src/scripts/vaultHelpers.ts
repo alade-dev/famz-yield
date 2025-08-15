@@ -1,8 +1,13 @@
 import { readContract, writeContract, simulateContract } from "@wagmi/core";
 import { parseUnits, formatUnits, Address } from "viem";
 import { config } from "@/config/wagmi";
-import { CONTRACT_ADDRESSES } from "@/config/contracts";
+import {
+  CONTRACT_ADDRESSES,
+  TESTNET_CONFIG,
+  SPECIAL_ADDRESSES,
+} from "@/config/contracts";
 import { VAULT_ABI } from "./Vault";
+import { PRICE_ORACLE_ABI } from "./PriceOracle";
 import { btcPriceCache } from "./priceApi";
 
 // ERC20 ABI for approvals and balances
@@ -327,13 +332,73 @@ export const executeDeposit = async (
 };
 
 /**
- * Get current oracle prices
+ * Get current oracle prices from the actual PriceOracle contract
  */
 export const getOraclePrices = async () => {
   try {
+    // console.log(
+    //   "Fetching prices from oracle contract:",
+    //   CONTRACT_ADDRESSES[1114].PRICE_ORACLE
+    // );
+    // console.log("CORE_NATIVE address:", SPECIAL_ADDRESSES.CORE_NATIVE);
+    // console.log("stCORE address:", CONTRACT_ADDRESSES[1114].ST_CORE);
+
+    // Get prices from the oracle contract
+    const [corePrice, stCOREPrice] = await Promise.all([
+      readContract(config, {
+        address: CONTRACT_ADDRESSES[1114].PRICE_ORACLE as Address,
+        abi: PRICE_ORACLE_ABI,
+        functionName: "getPrice",
+        args: [SPECIAL_ADDRESSES.CORE_NATIVE],
+      }) as Promise<bigint>,
+      readContract(config, {
+        address: CONTRACT_ADDRESSES[1114].PRICE_ORACLE as Address,
+        abi: PRICE_ORACLE_ABI,
+        functionName: "getPrice",
+        args: [CONTRACT_ADDRESSES[1114].ST_CORE],
+      }) as Promise<bigint>,
+    ]);
+
+    // Format the prices
+    const coreBTCPrice = formatUnits(corePrice, 18); // CORE price in BTC
+    const stCOREPriceFormatted = formatUnits(stCOREPrice, 18); // stCORE price
+
+    // console.log("Oracle prices fetched successfully:", {
+    //   corePrice: corePrice.toString(),
+    //   stCOREPrice: stCOREPrice.toString(),
+    //   coreBTCPrice,
+    //   stCOREPriceFormatted,
+    // });
+
+    return {
+      stCOREPrice: stCOREPriceFormatted,
+      coreBTCPrice: coreBTCPrice,
+      stCOREPriceRaw: stCOREPrice,
+      coreBTCPriceRaw: corePrice,
+    };
+  } catch (error) {
+    console.error("Error getting oracle prices from contract:", error);
+
+    // Fallback to testnet configuration values if oracle fails
+    console.log("Falling back to testnet configuration values");
+    return {
+      stCOREPrice: TESTNET_CONFIG.prices.stCORE_CORE,
+      coreBTCPrice: TESTNET_CONFIG.prices.CORE_BTC,
+      stCOREPriceRaw: parseUnits(TESTNET_CONFIG.prices.stCORE_CORE, 18),
+      coreBTCPriceRaw: parseUnits(TESTNET_CONFIG.prices.CORE_BTC, 18),
+    };
+  }
+};
+
+/**
+ * Get prices from the actual PriceOracle contract (when available)
+ * This function can be used when the PriceOracle contract is properly deployed
+ */
+export const getOraclePricesFromContract = async () => {
+  try {
     const result = (await readContract(config, {
-      address: CONTRACT_ADDRESSES[1114].VAULT as Address,
-      abi: VAULT_ABI,
+      address: CONTRACT_ADDRESSES[1114].PRICE_ORACLE as Address,
+      abi: PRICE_ORACLE_ABI,
       functionName: "getCurrentPrices",
     })) as [bigint, bigint];
 
@@ -344,8 +409,9 @@ export const getOraclePrices = async () => {
       coreBTCPriceRaw: result[1],
     };
   } catch (error) {
-    console.error("Error getting oracle prices:", error);
-    throw error;
+    console.error("Error getting oracle prices from contract:", error);
+    // Fallback to testnet config if oracle contract call fails
+    return getOraclePrices();
   }
 };
 

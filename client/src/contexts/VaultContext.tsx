@@ -10,6 +10,12 @@ import React, {
 import { useAccount } from "wagmi";
 import { useSecureStorage } from "@/lib/secureStorage";
 import { useTokenBalanceContext } from "./TokenBalanceContext";
+import type {
+  Transaction,
+  DepositTransaction,
+  RedeemTransaction,
+} from "@/pages/TransactionHistory";
+import { calculateRedeemAvailability } from "@/scripts/epochHelpers";
 
 interface VaultPosition {
   id: string;
@@ -66,6 +72,15 @@ interface VaultContextType {
   // Add methods to check if user has sufficient balance for deposits
   canDeposit: (wbtcAmount: number, stcoreAmount: number) => boolean;
   getAvailableBalance: (symbol: string) => string;
+  // Transaction History
+  transactions: Transaction[];
+  addDepositTransaction: (transaction: Omit<DepositTransaction, "id">) => void;
+  addRedeemTransaction: (transaction: Omit<RedeemTransaction, "id">) => void;
+  updateTransactionStatus: (
+    id: string,
+    status: "completed" | "pending" | "failed"
+  ) => void;
+  refreshTransactions: () => void;
 }
 
 const VaultContext = createContext<VaultContextType | undefined>(undefined);
@@ -86,6 +101,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const [positions, setPositions] = useState<VaultPosition[]>([]);
   const [earningsHistory, setEarningsHistory] = useState<EarningsHistory[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   // Use ref to track if we're currently updating earnings to prevent loops
@@ -503,6 +519,97 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     [isConnected, isDataLoaded]
   );
 
+  // Transaction History Functions
+  const addDepositTransaction = useCallback(
+    (transaction: Omit<DepositTransaction, "id">) => {
+      if (!isConnected) return;
+
+      const newTransaction: DepositTransaction = {
+        ...transaction,
+        id: `deposit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      };
+
+      setTransactions((prev) => [newTransaction, ...prev]);
+
+      // Store in secure storage
+      if (address) {
+        const storageKey = `transactions_${address}`;
+        setSecureItem(storageKey, [newTransaction, ...transactions]);
+      }
+    },
+    [isConnected, address, setSecureItem, transactions]
+  );
+
+  const addRedeemTransaction = useCallback(
+    (transaction: Omit<RedeemTransaction, "id">) => {
+      if (!isConnected) return;
+
+      const redeemInfo = calculateRedeemAvailability(transaction.timestamp);
+      const newTransaction: RedeemTransaction = {
+        ...transaction,
+        id: `redeem_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        epochRound: redeemInfo.epochRound,
+        epochEndTime: redeemInfo.epochEndTime,
+        tokensAvailable: redeemInfo.tokensAvailable,
+      };
+
+      setTransactions((prev) => [newTransaction, ...prev]);
+
+      // Store in secure storage
+      if (address) {
+        const storageKey = `transactions_${address}`;
+        setSecureItem(storageKey, [newTransaction, ...transactions]);
+      }
+    },
+    [isConnected, address, setSecureItem, transactions]
+  );
+
+  const updateTransactionStatus = useCallback(
+    (id: string, status: "completed" | "pending" | "failed") => {
+      setTransactions((prev) =>
+        prev.map((tx) => (tx.id === id ? { ...tx, status } : tx))
+      );
+
+      // Update in secure storage
+      if (address) {
+        const storageKey = `transactions_${address}`;
+        const updatedTransactions = transactions.map((tx) =>
+          tx.id === id ? { ...tx, status } : tx
+        );
+        setSecureItem(storageKey, updatedTransactions);
+      }
+    },
+    [address, setSecureItem, transactions]
+  );
+
+  const refreshTransactions = useCallback(() => {
+    // Update epoch status for redeem transactions
+    setTransactions((prev) =>
+      prev.map((tx) => {
+        if (tx.type === "redeem") {
+          const redeemTx = tx as RedeemTransaction;
+          const updatedInfo = calculateRedeemAvailability(redeemTx.timestamp);
+          return {
+            ...redeemTx,
+            tokensAvailable: updatedInfo.tokensAvailable,
+          };
+        }
+        return tx;
+      })
+    );
+  }, []);
+
+  // Load transactions from secure storage
+  useEffect(() => {
+    if (isConnected && address && isDataLoaded) {
+      const storageKey = `transactions_${address}`;
+      const storedTransactions = getSecureItem(storageKey, []);
+      if (storedTransactions && Array.isArray(storedTransactions)) {
+        setTransactions(storedTransactions);
+      }
+    }
+  }, [isConnected, address, isDataLoaded, getSecureItem]);
+
   return (
     <VaultContext.Provider
       value={{
@@ -522,6 +629,12 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
         isDataLoaded,
         canDeposit,
         getAvailableBalance,
+        // Transaction History
+        transactions,
+        addDepositTransaction,
+        addRedeemTransaction,
+        updateTransactionStatus,
+        refreshTransactions,
       }}
     >
       {children}

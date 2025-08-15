@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   Shield,
   ArrowDown,
+  History,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAccount } from "wagmi";
@@ -45,8 +46,14 @@ import { BitcoinIcon } from "@/components/icons/BitcoinIcon";
 import { CoreIcon } from "@/components/icons/CoreIcon";
 import { Badge } from "@/components/ui/badge";
 import { simulateDeposit } from "@/scripts";
-import { TrendingUp, DollarSign, Coins } from "lucide-react";
+import { TrendingUp, DollarSign, Coins, Clock, Info } from "lucide-react";
 import logo5 from "@/components/assets/logo5.png";
+import {
+  getCurrentEpochInfo,
+  calculateRedeemAvailability,
+  formatEpochTimeRemaining,
+  formatUserDateTime,
+} from "@/scripts/epochHelpers";
 
 const Vaults = () => {
   const { toast } = useToast();
@@ -60,6 +67,8 @@ const Vaults = () => {
     getAvailableBalance,
     isWalletConnected,
     isDataLoaded,
+    addDepositTransaction,
+    addRedeemTransaction,
   } = useVault();
 
   const { getFormattedBalance } = useTokenBalanceContext();
@@ -577,6 +586,17 @@ const Vaults = () => {
           apy: calculateAPY().toFixed(1),
         });
 
+        // Record deposit transaction
+        addDepositTransaction({
+          type: "deposit",
+          txHash,
+          timestamp: Date.now(),
+          wbtcAmount: btcValue,
+          stcoreAmount: coreValue,
+          lstbtcGenerated: parseFloat(lstBTCResult.lstBTCAmount),
+          status: "completed",
+        });
+
         // Clear input fields
         setBtcAmount("");
         setCoreAmount("");
@@ -774,6 +794,22 @@ const Vaults = () => {
         variant: "default",
       });
 
+      // Record redeem transaction
+      const redeemTimestamp = Date.now();
+      const redeemInfo = calculateRedeemAvailability(redeemTimestamp);
+      addRedeemTransaction({
+        type: "redeem",
+        txHash,
+        timestamp: redeemTimestamp,
+        lstbtcAmount: lstbtcValue,
+        wbtcReceived: parseFloat(redeemOutput.wbtcAmount),
+        stcoreReceived: parseFloat(redeemOutput.stcoreAmount),
+        epochRound: redeemInfo.epochRound,
+        epochEndTime: redeemInfo.epochEndTime,
+        tokensAvailable: redeemInfo.tokensAvailable,
+        status: "completed",
+      });
+
       // Show success modal
       setSuccessTxHash(txHash);
       setShowSuccessModal(true);
@@ -969,12 +1005,24 @@ const Vaults = () => {
             Calculate and perform vault operations
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link to="/dashboard">
-            <LayoutDashboard className="w-4 h-4 mr-2" />
-            Dashboard
+        <div className="flex flex-col items-end justify-end space-x-4">
+          <Button asChild variant="outline">
+            <Link to="/dashboard">
+              <LayoutDashboard className="w-4 h-4 mr-2" />
+              Dashboard
+            </Link>
+          </Button>
+
+          <Link to="/transactions">
+            <Button
+              variant="outline"
+              className="w-full mt-5 hover:bg-vault-card/50 hover:text-gold"
+            >
+              <History className="w-4 h-4 mr-2" />
+              Transaction History
+            </Button>
           </Link>
-        </Button>
+        </div>
       </div>
 
       {/* Staking Calculator */}
@@ -1720,6 +1768,61 @@ const Vaults = () => {
                   <div className="text-lg font-bold text-gold">
                     ≈ ${redeemPreview.totalValue.toLocaleString()} USD
                   </div>
+                </div>
+
+                {/* Epoch Timing Information */}
+                <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Clock className="w-4 h-4 text-blue-500" />
+                    <span className="font-medium text-blue-500">
+                      Token Availability
+                    </span>
+                    <Info className="w-4 h-4 text-muted-foreground" />
+                  </div>
+
+                  {(() => {
+                    const currentEpoch = getCurrentEpochInfo();
+                    const redeemInfo = calculateRedeemAvailability(Date.now());
+
+                    return (
+                      <div className="space-y-2">
+                        <div className="text-sm text-muted-foreground">
+                          Your tokens will be available at the end of the
+                          current epoch:
+                        </div>
+
+                        <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                          <span className="text-sm">Epoch Round:</span>
+                          <span className="font-medium">
+                            #{redeemInfo.epochRound}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                          <span className="text-sm">Available At:</span>
+                          <span className="font-medium text-sm">
+                            {formatUserDateTime(redeemInfo.epochEndTime)}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                          <span className="text-sm">Wait Time:</span>
+                          <span className="font-medium text-blue-500">
+                            {formatEpochTimeRemaining(
+                              redeemInfo.timeUntilAvailable
+                            )}
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-muted-foreground mt-2 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded">
+                          <strong>Note:</strong> Withdrawals are processed in
+                          24-hour epochs starting at 00:00 UTC. If you redeem at
+                          23:58 UTC, you only wait 2 minutes. If you redeem at
+                          00:02 UTC, you wait almost 24 hours.
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
