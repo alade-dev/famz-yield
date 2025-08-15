@@ -262,7 +262,7 @@ async function checkContractStatus(contracts) {
     console.log(`Operator: ${operator}`);
 
     // Check if stCORE is whitelisted
-    const isWhitelisted = await contracts.vault.whitelistedLSTs(DEPLOYED_CONTRACTS.stCORE);
+    const isWhitelisted = await contracts.vault.isLSTWhitelisted(DEPLOYED_CONTRACTS.stCORE);
     console.log(`✅ stCORE Whitelisted: ${isWhitelisted ? "YES" : "NO"}`);
 
     // Check prices in oracle

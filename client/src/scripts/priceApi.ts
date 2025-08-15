@@ -61,18 +61,18 @@ export const getCurrentBTCPrice = async (): Promise<number> => {
 
   for (const api of APIs) {
     try {
-      console.log(`Trying to fetch BTC price from ${api.name}...`);
+      // console.log(`Trying to fetch BTC price from ${api.name}...`);
       const price = await api.fn();
-      console.log(`✅ BTC price from ${api.name}: $${price.toLocaleString()}`);
+      // console.log(`✅ BTC price from ${api.name}: $${price.toLocaleString()}`);
       return price;
     } catch (error) {
-      console.warn(`❌ ${api.name} failed:`, error);
+      // console.warn(`❌ ${api.name} failed:`, error);
       continue;
     }
   }
 
   // If all APIs fail, use fallback
-  console.warn("⚠️ All BTC price APIs failed, using fallback price of $43,000");
+  // console.warn("⚠️ All BTC price APIs failed, using fallback price of $43,000");
   return 43000; //TODO: Remove this fallback price
 };
 
@@ -82,14 +82,14 @@ export const getCurrentBTCPrice = async (): Promise<number> => {
 class BTCPriceCache {
   private price: number | null = null;
   private lastFetch: number = 0;
-  private readonly CACHE_DURATION = 10 * 1000; // 10 seconds
+  private readonly CACHE_DURATION = 20 * 1000; // 20 seconds
 
   async getPrice(): Promise<number> {
     const now = Date.now();
 
     // Return cached price if it's still fresh
     if (this.price && now - this.lastFetch < this.CACHE_DURATION) {
-      console.log(`📦 Using cached BTC price: $${this.price.toLocaleString()}`);
+      // console.log(`📦 Using cached BTC price: $${this.price.toLocaleString()}`);
       return this.price;
     }
 
@@ -101,7 +101,7 @@ class BTCPriceCache {
     } catch (error) {
       // If fetch fails but we have a cached price, use it
       if (this.price) {
-        console.warn("Using stale cached BTC price due to fetch error:", error);
+        // console.warn("Using stale cached BTC price due to fetch error:", error);
         return this.price;
       }
       // Otherwise, use fallback
@@ -114,6 +114,67 @@ class BTCPriceCache {
     this.price = null;
     this.lastFetch = 0;
     return this.getPrice();
+  }
+
+  // Subscribers for price updates
+  private subscribers: ((price: number) => void)[] = [];
+  private intervalId: NodeJS.Timeout | null = null;
+
+  // Subscribe to price updates
+  subscribe(callback: (price: number) => void): () => void {
+    this.subscribers.push(callback);
+
+    // Start auto-refresh if not already running
+    this.startAutoRefresh();
+
+    // Return unsubscribe function
+    return () => {
+      this.subscribers = this.subscribers.filter((cb) => cb !== callback);
+
+      // If no more subscribers, stop auto-refresh
+      if (this.subscribers.length === 0) {
+        this.stopAutoRefresh();
+      }
+    };
+  }
+
+  // Start auto-refresh every 10 seconds
+  startAutoRefresh(): void {
+    if (this.intervalId) return; // Already running
+
+    // console.log("🔄 Starting BTC price auto-refresh (every 10 seconds)");
+
+    // Fetch immediately
+    this.refresh().then((price) => {
+      this.notifySubscribers(price);
+    });
+
+    // Then set interval
+    this.intervalId = setInterval(() => {
+      this.refresh().then((price) => {
+        this.notifySubscribers(price);
+      });
+    }, this.CACHE_DURATION);
+  }
+
+  // Stop auto-refresh
+  stopAutoRefresh(): void {
+    if (this.intervalId) {
+      // console.log("⏹️ Stopping BTC price auto-refresh");
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+  }
+
+  // Notify all subscribers
+  private notifySubscribers(price: number): void {
+    this.subscribers.forEach((callback) => {
+      try {
+        callback(price);
+      } catch (error) {
+        // console.error("Error in BTC price subscriber callback:", error);
+      }
+    });
   }
 }
 

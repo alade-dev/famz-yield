@@ -21,6 +21,7 @@ import UserPositions from "@/components/UserPositions";
 import TokenBalances from "@/components/TokenBalances";
 import { useVault } from "@/contexts/VaultContext";
 import { useTokenBalanceContext } from "@/contexts/TokenBalanceContext";
+import { useUSDPrices } from "@/hooks/useUSDPrices";
 import { useState } from "react";
 
 const Dashboard = () => {
@@ -36,8 +37,9 @@ const Dashboard = () => {
     getAvailableBalance,
   } = useVault();
 
-  // Get real token balances
+  // Get real token balances and USD prices
   const { tokens, getFormattedBalance, hasTokens } = useTokenBalanceContext();
+  const { prices: usdPrices, isLoading: pricesLoading } = useUSDPrices();
 
   const totalDeposited = getTotalDeposited();
   const totalValue = getTotalValue();
@@ -46,11 +48,61 @@ const Dashboard = () => {
     (sum, pos) => sum + pos.stcoreDeposited,
     0
   );
+  const totalLstBTC = positions.reduce(
+    (sum, pos) => sum + pos.lstbtcGenerated,
+    0
+  );
 
   const [depositModalTab, setDepositModalTab] = useState<"stake" | "redeem">(
     "stake"
   );
   const [isDepositModalOpen, setDepositModalOpen] = useState(false);
+
+  // Helper functions for USD calculations
+  const formatUSD = (amount: number) => {
+    if (amount === 0) return "$0.00";
+    if (amount < 0.01) return "< $0.01";
+    return `$${amount.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  const getWalletBalanceUSD = (symbol: string) => {
+    const balance = parseFloat(getFormattedBalance(symbol));
+    switch (symbol.toLowerCase()) {
+      case "wbtc":
+        return balance * usdPrices.wbtc;
+      case "stcore":
+        return balance * usdPrices.stcore;
+      case "tcore":
+        return balance * usdPrices.tcore;
+      case "lstbtc":
+        return balance * usdPrices.lstbtc;
+      default:
+        return 0;
+    }
+  };
+
+  const getVaultDepositsUSD = () => {
+    const wbtcUSD = totalWbtc * usdPrices.wbtc;
+    const stcoreUSD = totalStcore * usdPrices.stcore;
+    return { wbtcUSD, stcoreUSD, total: wbtcUSD + stcoreUSD };
+  };
+
+  const getLstBTCValueUSD = () => {
+    return totalLstBTC * usdPrices.lstbtc;
+  };
+
+  const getTotalEarningsUSD = () => {
+    const wbtcEarningsUSD = getTotalWbtcEarnings() * usdPrices.wbtc;
+    const stcoreEarningsUSD = getTotalStcoreEarnings() * usdPrices.stcore;
+    return {
+      wbtcEarningsUSD,
+      stcoreEarningsUSD,
+      total: wbtcEarningsUSD + stcoreEarningsUSD,
+    };
+  };
 
   // Component for showing wallet connection required message
   const WalletConnectionRequired = () => (
@@ -193,7 +245,8 @@ const Dashboard = () => {
                     </p>
                   </div>
                 </div>
-
+                {/* Token Balances */}
+                <TokenBalances />
                 <div className="space-y-3">
                   <h4 className="font-medium">Asset Breakdown</h4>
                   {/* User Wallet Balances */}
@@ -207,54 +260,139 @@ const Dashboard = () => {
                           <BitcoinIcon size="sm" />
                           <span className="text-sm">wBTC</span>
                         </div>
-                        <span className="text-sm font-medium">
-                          {getFormattedBalance("wBTC")}
-                        </span>
+                        <div className="text-right">
+                          <span className="text-sm font-medium">
+                            {getFormattedBalance("wBTC")}
+                          </span>
+                          {!pricesLoading && (
+                            <p className="text-xs text-muted-foreground">
+                              {formatUSD(getWalletBalanceUSD("wBTC"))}
+                            </p>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
                         <div className="flex items-center space-x-2">
                           <CoreIcon size="sm" />
                           <span className="text-sm">stCORE</span>
                         </div>
-                        <span className="text-sm font-medium">
-                          {parseFloat(getFormattedBalance("stCORE")).toFixed(4)}
-                        </span>
+                        <div className="text-right">
+                          <span className="text-sm font-medium">
+                            {parseFloat(getFormattedBalance("stCORE")).toFixed(
+                              5
+                            )}
+                          </span>
+                          {!pricesLoading && (
+                            <p className="text-xs text-muted-foreground">
+                              {formatUSD(getWalletBalanceUSD("stCORE"))}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   {/* Total Earnings from lstBTC */}
                   <div className="space-y-2 mb-4">
-                    <h5 className="text-sm font-medium text-muted-foreground">
-                      Total Earnings from lstBTC
-                    </h5>
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-sm font-medium text-muted-foreground">
+                        Total Earnings from lstBTC
+                      </h5>
+                      {!pricesLoading && (
+                        <span className="text-sm font-medium text-gold">
+                          {formatUSD(getTotalEarningsUSD().total)}
+                        </span>
+                      )}
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="flex items-center justify-between p-2 bg-gold/10 rounded">
                         <div className="flex items-center space-x-2">
                           <BitcoinIcon size="sm" />
                           <span className="text-sm">wBTC</span>
                         </div>
-                        <span className="text-sm font-medium text-gold">
-                          +{getTotalWbtcEarnings().toFixed(6)}
-                        </span>
+                        <div className="text-right">
+                          <span className="text-sm font-medium text-gold">
+                            +{getTotalWbtcEarnings().toFixed(8)}
+                          </span>
+                          {!pricesLoading && (
+                            <p className="text-xs text-gold/70">
+                              {formatUSD(getTotalEarningsUSD().wbtcEarningsUSD)}
+                            </p>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center justify-between p-2 bg-gold/10 rounded">
                         <div className="flex items-center space-x-2">
                           <CoreIcon size="sm" />
                           <span className="text-sm">stCORE</span>
                         </div>
-                        <span className="text-sm font-medium text-gold">
-                          +{getTotalStcoreEarnings().toFixed(4)}
-                        </span>
+                        <div className="text-right">
+                          <span className="text-sm font-medium text-gold">
+                            +{getTotalStcoreEarnings().toFixed(5)}
+                          </span>
+                          {!pricesLoading && (
+                            <p className="text-xs text-gold/70">
+                              {formatUSD(
+                                getTotalEarningsUSD().stcoreEarningsUSD
+                              )}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
 
+                  {/* Total lstBTC Generated */}
+                  {positions.length > 0 && (
+                    <div className="space-y-2 mb-4">
+                      {/* <div className="flex items-center justify-between">
+                        <h5 className="text-sm font-medium text-muted-foreground">
+                          Total lstBTC Generated
+                        </h5>
+                        {!pricesLoading && (
+                          <span className="text-sm font-medium text-blue-500">
+                            {formatUSD(getLstBTCValueUSD())}
+                          </span>
+                        )}
+                      </div> */}
+                      <div className="flex items-center justify-between p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-8 h-8 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md">
+                            <span className="text-gold font-bold text-3xl">
+                              ₿
+                            </span>
+                          </div>
+                          <span className="font-medium">lstBTC</span>
+                          <span className="text-xs bg-blue-500/20 text-gold px-2 py-1 rounded-full">
+                            Liquid Staked BTC
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-lg font-bold text-blue-500">
+                            {totalLstBTC.toFixed(6)} lstBTC
+                          </span>
+                          {!pricesLoading && (
+                            <p className="text-sm text-blue-500/70">
+                              {formatUSD(getLstBTCValueUSD())}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {positions.length > 0 ? (
                     <div className="space-y-2">
-                      <h5 className="text-sm font-medium text-muted-foreground">
-                        Vault Deposits
-                      </h5>
+                      <div className="flex items-center justify-between">
+                        <h5 className="text-sm font-medium text-muted-foreground">
+                          Vault Deposits
+                        </h5>
+                        {!pricesLoading && (
+                          <span className="text-sm font-medium text-primary">
+                            {formatUSD(getVaultDepositsUSD().total)}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                         <div className="flex items-center space-x-2">
                           <BitcoinIcon size="lg" />
@@ -262,11 +400,13 @@ const Dashboard = () => {
                         </div>
                         <div className="text-right">
                           <p className="font-medium">
-                            {totalWbtc.toFixed(6)} wBTC
+                            {totalWbtc.toLocaleString()} wBTC
                           </p>
-                          <p className="text-sm text-muted-foreground">
-                            ${(totalWbtc * 43000).toLocaleString()}
-                          </p>
+                          {!pricesLoading && (
+                            <p className="text-sm text-muted-foreground">
+                              {formatUSD(getVaultDepositsUSD().wbtcUSD)}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
@@ -278,9 +418,11 @@ const Dashboard = () => {
                           <p className="font-medium">
                             {totalStcore.toLocaleString()} stCORE
                           </p>
-                          <p className="text-sm text-muted-foreground">
-                            ${totalStcore.toLocaleString()}
-                          </p>
+                          {!pricesLoading && (
+                            <p className="text-sm text-muted-foreground">
+                              {formatUSD(getVaultDepositsUSD().stcoreUSD)}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -360,9 +502,6 @@ const Dashboard = () => {
           )}
         </Card>
       </div>
-
-      {/* Token Balances */}
-      <TokenBalances />
 
       {/* Quick Actions */}
       <Card className="bg-gradient-vault border-vault-border">

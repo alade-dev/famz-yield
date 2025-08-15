@@ -31,6 +31,7 @@ import {
   executeDeposit,
   getOraclePrices,
   calculateLstBTCFromDeposit,
+  calculateLstBTCWithRealPrices,
   simulateRedeemWithChecks,
   calculateRedeemOutput,
   executeRedeem as executeVaultRedeem,
@@ -44,6 +45,8 @@ import { BitcoinIcon } from "@/components/icons/BitcoinIcon";
 import { CoreIcon } from "@/components/icons/CoreIcon";
 import { Badge } from "@/components/ui/badge";
 import { simulateDeposit } from "@/scripts";
+import { TrendingUp, DollarSign, Coins } from "lucide-react";
+import logo5 from "@/components/assets/logo5.png";
 
 const Vaults = () => {
   const { toast } = useToast();
@@ -74,6 +77,8 @@ const Vaults = () => {
     totalValue: number;
   } | null>(null);
   const [redeemPreviewLoading, setRedeemPreviewLoading] = useState(false);
+  const [calculatedLstBTC, setCalculatedLstBTC] = useState<string>("0.000000");
+  const [lstBTCLoading, setLstBTCLoading] = useState(false);
 
   // Price management state
   const [prices, setPrices] = useState({
@@ -112,18 +117,18 @@ const Vaults = () => {
 
       const newPrices = {
         wbtc: Math.round(btcUsdPrice), // wBTC ≈ BTC price
-        stcore: parseFloat(stcoreUsdPrice.toFixed(6)),
+        stcore: parseFloat(stcoreUsdPrice.toFixed(5)),
       };
 
       setPrices(newPrices);
       setLastPriceUpdate(Date.now());
 
-      console.log("Oracle prices fetched:", {
-        realBTCPrice: `$${btcUsdPrice.toLocaleString()}`,
-        stCOREPrice: oraclePrices.stCOREPrice,
-        coreBTCPrice: oraclePrices.coreBTCPrice,
-        calculatedUSDPrices: newPrices,
-      });
+      // console.log("Oracle prices fetched:", {
+      //   realBTCPrice: `$${btcUsdPrice.toLocaleString()}`,
+      //   stCOREPrice: oraclePrices.stCOREPrice,
+      //   coreBTCPrice: oraclePrices.coreBTCPrice,
+      //   calculatedUSDPrices: newPrices,
+      // });
     } catch (error) {
       console.error("Failed to fetch oracle prices:", error);
     } finally {
@@ -191,6 +196,33 @@ const Vaults = () => {
     [address, prices.wbtc, prices.stcore, positions]
   );
 
+  // Calculate real lstBTC generation using oracle prices
+  const calculateRealLstBTC = useCallback(async () => {
+    const wbtc = parseFloat(btcAmount) || 0;
+    const stcore = parseFloat(coreAmount) || 0;
+
+    if (wbtc === 0 && stcore === 0) {
+      setCalculatedLstBTC("0.000000");
+      return;
+    }
+
+    setLstBTCLoading(true);
+    try {
+      const result = await calculateLstBTCWithRealPrices(
+        btcAmount || "0",
+        coreAmount || "0"
+      );
+      setCalculatedLstBTC(parseFloat(result.lstBTCAmount).toFixed(8));
+    } catch (error) {
+      console.error("Error calculating real lstBTC:", error);
+      // Fallback to simple calculation if oracle fails
+      const fallbackLstBTC = wbtc * 0.95 + stcore * 0.0001;
+      setCalculatedLstBTC(fallbackLstBTC.toFixed(6));
+    } finally {
+      setLstBTCLoading(false);
+    }
+  }, [btcAmount, coreAmount]);
+
   // Debounced price fetching triggered by user input
   const debouncedFetchPrices = useCallback(() => {
     // Clear existing debounce timeout
@@ -228,7 +260,7 @@ const Vaults = () => {
   }, []);
 
   // Dynamic calculations with boost system
-  const btcValue = Math.max(0, Number(parseFloat(btcAmount || "0").toFixed(6)));
+  const btcValue = Math.max(0, Number(parseFloat(btcAmount || "0")));
   const coreValue = Math.max(0, parseFloat(coreAmount) || 0);
   const lstbtcValue = Math.max(0, parseFloat(lstbtcAmount) || 0);
 
@@ -246,11 +278,11 @@ const Vaults = () => {
     const wbtc = parseFloat(btcAmount) || 0;
     const stcore = parseFloat(coreAmount) || 0;
 
-    if (wbtc === 0 && stcore === 0) return "0.000000";
+    if (wbtc === 0 && stcore === 0) return "0.00000";
 
     // Use a simplified version for UI display - the actual calculation happens in the contract
     // This is just for preview purposes
-    return (wbtc * 0.95 + stcore * 0.0001).toFixed(6);
+    return (wbtc * 0.95 + stcore * 0.0001).toFixed(3);
   };
 
   // Calculate total USD value using dynamic prices
@@ -307,6 +339,15 @@ const Vaults = () => {
       setRedeemPreview(null);
     }
   }, [mode, lstbtcValue, fetchRedeemPreview]);
+
+  // Effect to calculate real lstBTC when deposit amounts change
+  useEffect(() => {
+    if (mode === "deposit" && (btcAmount || coreAmount)) {
+      calculateRealLstBTC();
+    } else if (mode === "deposit") {
+      setCalculatedLstBTC("0.000000");
+    }
+  }, [mode, btcAmount, coreAmount, calculateRealLstBTC]);
 
   // Effect to update timestamp display every second
   useEffect(() => {
@@ -432,7 +473,7 @@ const Vaults = () => {
           });
 
           const allowances = await checkAllowances(address, wbtcAmt, stcoreAmt);
-          console.log("Current allowances:", allowances);
+          // console.log("Current allowances:", allowances);
 
           const approvalResults: Array<{
             token: string;
@@ -518,7 +559,7 @@ const Vaults = () => {
           coreAmount || "0"
         );
 
-        console.log("Deposit transaction hash:", txHash);
+        // console.log("Deposit transaction hash:", txHash);
 
         // Calculate the actual lstBTC generated using oracle prices
         const lstBTCResult = await calculateLstBTCFromDeposit(
@@ -533,7 +574,7 @@ const Vaults = () => {
           stcoreDeposited: coreValue,
           lstbtcGenerated: parseFloat(lstBTCResult.lstBTCAmount),
           currentValue: calculateTotalValue(),
-          apy: "12.5%",
+          apy: calculateAPY().toFixed(1),
         });
 
         // Clear input fields
@@ -567,11 +608,11 @@ const Vaults = () => {
           return;
         }
 
-        console.log("Redeem simulation successful:", redeemSimulation.result);
+        // console.log("Redeem simulation successful:", redeemSimulation.result);
 
         // Calculate what user will receive
         const redeemOutput = await calculateRedeemOutput(address, lstbtcAmount);
-        console.log("User will receive:", redeemOutput);
+        // console.log("User will receive:", redeemOutput);
 
         // Show confirmation modal with calculated output
         setShowRedeemModal(true);
@@ -580,8 +621,7 @@ const Vaults = () => {
       console.error(`${mode} error:`, error);
       toast({
         title: `${mode.charAt(0).toUpperCase() + mode.slice(1)} Failed`,
-        description:
-          (error as Error)?.message || "An unexpected error occurred",
+
         variant: "destructive",
       });
     }
@@ -660,13 +700,13 @@ const Vaults = () => {
 
       // Execute the blockchain redeem
       const txHash = await executeVaultRedeem(lstbtcAmount);
-      console.log("Redeem transaction hash:", txHash);
+      // console.log("Redeem transaction hash:", txHash);
 
       // Get the actual amounts received
       const redeemOutput = await calculateRedeemOutput(address, lstbtcAmount);
 
       // Update local positions (remove redeemed amount)
-      const breakdown = calculateRedeemBreakdown(lstbtcValue);
+      // const breakdown = calculateRedeemBreakdown(lstbtcValue);
       let remainingLstbtc = lstbtcValue;
       const positionsToUpdate = [...positions];
       const positionsToRemove: string[] = [];
@@ -728,18 +768,22 @@ const Vaults = () => {
         title: "Redeemed Successfully!",
         description: `Transaction: ${txHash}. Received ${parseFloat(
           redeemOutput.wbtcAmount
-        ).toFixed(6)} wBTC and ${parseFloat(
+        ).toFixed(5)} wBTC and ${parseFloat(
           redeemOutput.stcoreAmount
         ).toLocaleString()} stCORE`,
         variant: "default",
       });
 
-      console.log("Redeem completed successfully");
+      // Show success modal
+      setSuccessTxHash(txHash);
+      setShowSuccessModal(true);
+
+      // console.log("Redeem completed successfully");
     } catch (error) {
       console.error("Redeem execution failed:", error);
       toast({
         title: "Redeem Failed",
-        description: (error as Error)?.message || "Failed to execute redeem",
+        // description: (error as Error)?.message || "Failed to execute redeem",
         variant: "destructive",
       });
     }
@@ -778,17 +822,16 @@ const Vaults = () => {
 
       // If position has no deposits left, mark for removal
       if (position.wbtcDeposited === 0 && position.stcoreDeposited === 0) {
-        console.log(
-          `Marking position ${position.id} for removal - fully withdrawn`
-        );
+        // console.log(
+        //   `Marking position ${position.id} for removal - fully withdrawn`
+        // );
         positionsToRemove.push(position.id);
       } else {
         // Recalculate lstBTC and current value for remaining position (using dynamic prices)
         const remainingWbtc = position.wbtcDeposited;
         const remainingStcore = position.stcoreDeposited;
-        position.lstbtcGenerated = parseFloat(
-          (remainingWbtc * 0.95 + remainingStcore * 0.0001).toFixed(6)
-        );
+        position.lstbtcGenerated =
+          remainingWbtc * 0.95 + remainingStcore * 0.0001;
         position.currentValue =
           remainingWbtc * prices.wbtc + remainingStcore * prices.stcore;
       }
@@ -814,15 +857,15 @@ const Vaults = () => {
 
     // Remove positions that are fully withdrawn
     positionsToRemove.forEach((positionId) => {
-      console.log(`Removing position: ${positionId}`);
+      // console.log(`Removing position: ${positionId}`);
       removePosition(positionId);
     });
 
-    console.log("Position updates applied successfully:", {
-      updated: updatedPositions.length,
-      removed: positionsToRemove.length,
-      positionsToRemove: positionsToRemove,
-    });
+    // console.log("Position updates applied successfully:", {
+    //   updated: updatedPositions.length,
+    //   removed: positionsToRemove.length,
+    //   positionsToRemove: positionsToRemove,
+    // });
 
     return {
       btcWithdrawn: btcToUnstake - remainingBtc,
@@ -863,6 +906,50 @@ const Vaults = () => {
   const validPositions = positions.filter(
     (p) => p.wbtcDeposited > 0 || p.stcoreDeposited > 0
   );
+
+  // Calculate key metrics
+  const calculateAPY = () => {
+    // Calculate weighted average APY based on current positions and market conditions
+    const baseAPY = 7.5; // Base APY of 7%
+    const maxAPY = 11.5; // Maximum APY of 11.5%
+
+    // Calculate boost based on total staked amounts and current prices
+    const totalWbtcValue = positions.reduce(
+      (sum, p) => sum + p.wbtcDeposited * prices.wbtc,
+      0
+    );
+    const totalStcoreValue = positions.reduce(
+      (sum, p) => sum + p.stcoreDeposited * prices.stcore,
+      0
+    );
+    const totalValue = totalWbtcValue + totalStcoreValue;
+
+    if (totalValue === 0) return baseAPY;
+
+    // Higher staking amounts get better APY (up to max)
+    const boostFactor = Math.min(totalValue / 100000, 1); // Boost factor based on $100k max
+    const currentAPY = baseAPY + boostFactor * (maxAPY - baseAPY);
+
+    return Math.min(currentAPY, maxAPY);
+  };
+
+  const calculateTotalValueLocked = () => {
+    // Calculate total value of all deposits across all positions
+    const totalWbtcValue = positions.reduce(
+      (sum, p) => sum + p.wbtcDeposited * prices.wbtc,
+      0
+    );
+    const totalStcoreValue = positions.reduce(
+      (sum, p) => sum + p.stcoreDeposited * prices.stcore,
+      0
+    );
+    return totalWbtcValue + totalStcoreValue;
+  };
+
+  const calculateTotalLstBTCMinted = () => {
+    // Calculate total lstBTC generated across all positions
+    return positions.reduce((sum, p) => sum + p.lstbtcGenerated, 0);
+  };
 
   // Max values based on mode
   const maxBtc = mode === "deposit" ? wbtcBalance : 0;
@@ -965,7 +1052,7 @@ const Vaults = () => {
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>
                       Available:{" "}
-                      {parseFloat(getFormattedBalance("wBTC")).toFixed(6)} wBTC
+                      {parseFloat(getFormattedBalance("wBTC")).toFixed(5)} wBTC
                     </span>
                     <div className="flex items-center space-x-1">
                       {priceLoading && (
@@ -982,10 +1069,12 @@ const Vaults = () => {
                     <Label className="text-sm">Delegate To Custodian:</Label>
                     <div className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                          <span className="text-primary-foreground font-bold text-lg">
-                            F
-                          </span>
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center">
+                          <img
+                            src={logo5}
+                            alt="Famz Yield Logo"
+                            className="w-10 h-10"
+                          />
                         </div>
                         <div>
                           <p className="font-medium">Famz Custodian</p>
@@ -1036,7 +1125,7 @@ const Vaults = () => {
                       variant="secondary"
                       size="sm"
                       className="absolute right-2 top-1/2 transform -translate-y-1/2"
-                      onClick={() => setCoreAmount(maxCore.toFixed(2))}
+                      onClick={() => setCoreAmount(maxCore.toString())}
                     >
                       MAX
                     </Button>
@@ -1044,7 +1133,7 @@ const Vaults = () => {
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>
                       Available:{" "}
-                      {parseFloat(getFormattedBalance("stCORE")).toFixed(4)}{" "}
+                      {parseFloat(getFormattedBalance("stCORE")).toFixed(5)}{" "}
                       stCORE
                     </span>
                     <div className="flex items-center space-x-1">
@@ -1062,10 +1151,12 @@ const Vaults = () => {
                     <Label className="text-sm">Delegate To Custodian:</Label>
                     <div className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                          <span className="text-primary-foreground font-bold text-lg">
-                            F
-                          </span>
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center">
+                          <img
+                            src={logo5}
+                            alt="Famz Yield Logo"
+                            className="w-10 h-10"
+                          />
                         </div>
                         <div>
                           <p className="font-medium">Famz Custodian</p>
@@ -1123,7 +1214,7 @@ const Vaults = () => {
                   </Button>
                 </div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Available: {maxLstbtc.toFixed(6)} lstBTC</span>
+                  <span>Available: {maxLstbtc.toFixed(8)} lstBTC</span>
                   <div className="flex items-center space-x-1">
                     {priceLoading && (
                       <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
@@ -1151,7 +1242,7 @@ const Vaults = () => {
                     ) : redeemPreview ? (
                       <div className="space-y-1">
                         <p className="text-sm font-medium">
-                          {redeemPreview.wbtcToReceive.toFixed(6)} wBTC
+                          {redeemPreview.wbtcToReceive.toFixed(8)} wBTC
                         </p>
                         <p className="text-sm font-medium">
                           {redeemPreview.stcoreToReceive.toLocaleString()}{" "}
@@ -1217,12 +1308,16 @@ const Vaults = () => {
                     <div className="flex items-center justify-center space-x-4">
                       <div className="text-center">
                         <p className="text-sm text-muted-foreground">wBTC</p>
-                        <p className="font-bold">{btcAmount}</p>
+                        <p className="font-bold">
+                          {parseFloat(btcAmount).toFixed(8)}
+                        </p>
                       </div>
                       <span className="text-muted-foreground">+</span>
                       <div className="text-center">
                         <p className="text-sm text-muted-foreground">stCORE</p>
-                        <p className="font-bold">{coreAmount}</p>
+                        <p className="font-bold">
+                          {parseFloat(coreAmount).toFixed(5)}
+                        </p>
                       </div>
                     </div>
                     <ArrowDown className="w-6 h-6 text-primary mx-auto" />
@@ -1231,9 +1326,18 @@ const Vaults = () => {
                         <p className="text-sm text-muted-foreground">
                           Will Generate
                         </p>
-                        <p className="text-xl font-bold text-gold">
-                          {calculateLstBtc()} lstBTC
-                        </p>
+                        {lstBTCLoading ? (
+                          <div className="flex items-center justify-center space-x-2">
+                            <div className="w-4 h-4 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+                            <p className="text-xl font-bold text-gold">
+                              Calculating...
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-xl font-bold text-gold">
+                            {calculatedLstBTC} lstBTC
+                          </p>
+                        )}
                       </div>
                       <div className="text-center">
                         <p className="text-xs text-muted-foreground">
@@ -1247,7 +1351,7 @@ const Vaults = () => {
 
               {/* Redeem Preview */}
               {mode === "redeem" && lstbtcAmount && lstbtcValue > 0 && (
-                <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="p-3 bg-muted/50 flex flex-col items-center justify-center rounded-lg">
                   <p className="text-sm text-muted-foreground mb-2">
                     You will receive:
                   </p>
@@ -1261,7 +1365,7 @@ const Vaults = () => {
                   ) : redeemPreview ? (
                     <div className="space-y-1">
                       <p className="text-sm font-medium">
-                        {redeemPreview.wbtcToReceive.toFixed(6)} wBTC
+                        {redeemPreview.wbtcToReceive.toFixed(8)} wBTC
                       </p>
                       <p className="text-sm font-medium">
                         {redeemPreview.stcoreToReceive.toLocaleString()} stCORE
@@ -1281,8 +1385,68 @@ const Vaults = () => {
               <div className="p-6 space-y-6">
                 {mode === "deposit" && (
                   <>
+                    {/* Key Metrics Stats */}
+                    <div className="space-y-4">
+                      {/* Annual Percentage Yield */}
+                      <div className="flex items-center justify-between p-3 bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2 bg-green-500/20 rounded-lg">
+                            <TrendingUp className="w-4 h-4 text-green-500" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">APY</p>
+                            <p className="text-lg font-bold text-green-500">
+                              {calculateAPY().toFixed(1)}%
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          (7.0 - 11.5%)
+                        </span>
+                      </div>
+
+                      {/* Total Value Locked */}
+                      <div className="flex items-center justify-between p-3 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2 bg-blue-500/20 rounded-lg">
+                            <DollarSign className="w-4 h-4 text-blue-500" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">TVL</p>
+                            <p className="text-lg font-bold text-blue-500">
+                              $
+                              {calculateTotalValueLocked().toLocaleString(
+                                undefined,
+                                {
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 0,
+                                }
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Total lstBTC Minted */}
+                      <div className="flex items-center justify-between p-3 bg-gradient-to-br from-gold/10 to-yellow-500/10 border border-gold/20 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2 bg-gold/20 rounded-lg">
+                            <Coins className="w-4 h-4 text-gold" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">
+                              Total lstBTC Minted
+                            </p>
+                            <p className="text-lg font-bold text-gold">
+                              {calculateTotalLstBTCMinted().toFixed(6)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Projected Annual Rate */}
-                    <div className="space-y-2">
+                    {/* <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm">
                           Projected Annual Reward Rate
@@ -1291,10 +1455,10 @@ const Vaults = () => {
                       <p className="text-4xl font-bold text-gold">
                         {Number(calculateTotalValue() / 10000).toFixed(2)}%
                       </p>
-                    </div>
+                    </div> */}
 
                     {/* Projected Annual Rewards */}
-                    <div className="space-y-2">
+                    {/* <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm">
                           Projected Annual Rewards
@@ -1302,7 +1466,7 @@ const Vaults = () => {
                       </div>
                       <div className="flex items-baseline space-x-2">
                         <p className="text-4xl font-bold text-gold">
-                          {Number(calculateLstBtc()).toFixed(3)}K
+                          {Number(calculateLstBtc())}K
                         </p>
                         <span className="text-sm text-muted-foreground">
                           LstBTC
@@ -1311,7 +1475,7 @@ const Vaults = () => {
                           ${calculateTotalValue().toLocaleString()} USD
                         </span>
                       </div>
-                    </div>
+                    </div> */}
                   </>
                 )}
 
@@ -1323,7 +1487,7 @@ const Vaults = () => {
                       </p>
                       {lstbtcValue >= 0 && (
                         <div className="text-2xl font-bold text-gold">
-                          Total Available: {maxLstbtc.toFixed(6)} lstBTC
+                          Total Available: {maxLstbtc.toFixed(8)} lstBTC
                         </div>
                       )}
                     </div>
@@ -1443,7 +1607,7 @@ const Vaults = () => {
                             variant="secondary"
                             className="bg-gold/20 text-gold"
                           >
-                            {coreValue > 0 ? coreValue : 0}
+                            {coreValue > 0 ? coreValue.toFixed(5) : 0}
                           </Badge>
                         </div>
                       </div>
@@ -1517,7 +1681,7 @@ const Vaults = () => {
                 You are redeeming
               </div>
               <div className="text-2xl font-bold text-gold">
-                {lstbtcValue} lstBTC
+                {lstbtcValue.toFixed(8)} lstBTC
               </div>
             </div>
 
@@ -1535,7 +1699,7 @@ const Vaults = () => {
                     <span className="font-medium">wBTC</span>
                   </div>
                   <span className="font-bold">
-                    {redeemPreview.wbtcToReceive.toFixed(6)}
+                    {redeemPreview.wbtcToReceive.toFixed(8)}
                   </span>
                 </div>
 
@@ -1582,8 +1746,12 @@ const Vaults = () => {
         isOpen={showSuccessModal}
         onClose={() => setShowSuccessModal(false)}
         txHash={successTxHash}
-        title="Deposit Completed"
-        description="Your deposit has been successfully processed and lstBTC has been generated!"
+        title={mode === "deposit" ? "Deposit Completed" : "Redeem Completed"}
+        description={
+          mode === "deposit"
+            ? "Your deposit has been successfully processed and lstBTC has been generated!"
+            : "Your redeem has been successfully processed and wBTC and stCORE have been generated!"
+        }
       />
     </div>
   );

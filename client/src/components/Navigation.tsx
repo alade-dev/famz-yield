@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { LayoutDashboard, Vault, Menu, X } from "lucide-react";
 import WalletConnect from "./WalletConnect";
 import ThemeToggle from "./ThemeToggle";
-import logo5 from "@/assets/logo5.png";
+import logo5 from "./assets/logo5.png";
 
 const Navigation = () => {
   const location = useLocation();
@@ -26,12 +26,10 @@ const Navigation = () => {
           {/* Logo */}
           <div className="flex items-center space-x-2">
             <Link to="/" className="flex items-center space-x-1">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-lg">
-                  <img src={logo5} alt="Famz Yield Logo" className="w-9 h-9" />
-                </span>
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center">
+                <img src={logo5} alt="Famz Yield Logo" className="w-10 h-10" />
               </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
+              <span className="text-lg font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
                 Famz Yield
               </span>
             </Link>
@@ -69,7 +67,7 @@ const Navigation = () => {
                     <span className="px-3 py-2 text-sm font-medium text-muted-foreground/60">
                       {tab.label}
                     </span>
-                    <p className="px-2 py-1 text-xs font-semibold bg-amber-400/20 text-white rounded-full shadow-sm border border-amber-300/30">
+                    <p className="px-2 py-1 text-xs font-semibold bg-amber-500/20 text-gray-400 rounded-full shadow-sm border border-amber-500/30">
                       Coming Soon
                     </p>
                   </div>

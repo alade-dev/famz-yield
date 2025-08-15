@@ -58,10 +58,10 @@ async function main() {
   console.log(`✅ stCORE/CORE price set: ${ethers.formatEther(TESTNET_CONFIG.prices.stCORE_CORE)}`);
   console.log(`✅ CORE/BTC price set: ${ethers.formatEther(TESTNET_CONFIG.prices.CORE_BTC)}`);
 
-  // lstBTC Token
+  // lstBTC Token  
   console.log("\n🪙 Deploying lstBTC Token...");
-  const LstBTCNew = await ethers.getContractFactory("LstBTCNew");
-  contracts.lstBTC = await LstBTCNew.deploy(deployer.address);
+  const LstBTC = await ethers.getContractFactory("LstBTC");
+  contracts.lstBTC = await LstBTC.deploy(deployer.address);
   await contracts.lstBTC.waitForDeployment();
   console.log("✅ lstBTC:", await contracts.lstBTC.getAddress());
 
@@ -80,8 +80,8 @@ async function main() {
 
   // Vault
   console.log("\n🏛️  Deploying Vault...");
-  const VaultNew = await ethers.getContractFactory("VaultNew");
-  contracts.vault = await VaultNew.deploy(
+  const Vault = await ethers.getContractFactory("Vault");
+  contracts.vault = await Vault.deploy(
     await contracts.wBTC.getAddress(),
     await contracts.custodian.getAddress(),
     await contracts.lstBTC.getAddress(),

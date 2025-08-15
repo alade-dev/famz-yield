@@ -40,15 +40,15 @@ const VaultCreationCard = () => {
         <div className="space-y-3 ">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Min. Deposit</span>
-            <span className="font-medium">100 CORE</span>
+            <span className="font-medium">0.1 stCORE</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Expected APY</span>
-            <span className="font-medium text-gold">15-25%</span>
+            <span className="font-medium text-gold">7-12%</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Management Fee</span>
-            <span className="font-medium">2%</span>
+            <span className="font-medium">1-2%</span>
           </div>
         </div>
 

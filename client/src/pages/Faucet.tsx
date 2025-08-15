@@ -232,6 +232,10 @@ const Faucet = () => {
                         ))}
                     </div>
                   )}
+                  {/* Token Balances */}
+                  <div className="mt-8">
+                    <TokenBalances />
+                  </div>
                 </div>
               </div>
 
@@ -321,11 +325,6 @@ const Faucet = () => {
             </div>
           </CardContent>
         </Card>
-
-        {/* Token Balances */}
-        <div className="mb-8">
-          <TokenBalances />
-        </div>
 
         {/* Additional Info Cards */}
         <div className="grid md:grid-cols-2 gap-6">
