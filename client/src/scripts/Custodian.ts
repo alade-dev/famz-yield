@@ -295,6 +295,24 @@ export const CUSTODIAN_ABI = [
     },
     {
       "inputs": [],
+      "name": "getPriceInfo",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "price_stCORE_CORE",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "price_CORE_BTC",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "getTotalBTCValue",
       "outputs": [
         {
