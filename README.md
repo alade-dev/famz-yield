@@ -7,6 +7,8 @@
 > ⚠️ **WARNING**: This project is currently in **testnet phase**. All contracts and tokens are **simulated**. Do **not** deposit real funds.
 
 ---
+## Pitch deck link: 
+[Google-drive](https://docs.google.com/presentation/d/1Smk0eHTUW46229TbyYFL3PEc_74XzcJi/edit?usp=sharing&ouid=101857238934722798045&rtpof=true&sd=true)
 
 ## Table of Contents
 
