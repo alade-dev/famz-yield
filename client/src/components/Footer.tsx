@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Twitter, Github } from "lucide-react";
-import logo5 from "@/assets/logo5.png";
+import logo5 from "./assets/logo5.png";
 
 const Footer = () => {
   const footerSections = [

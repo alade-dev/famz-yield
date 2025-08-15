@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { LayoutDashboard, Vault, Menu, X } from "lucide-react";
 import WalletConnect from "./WalletConnect";
 import ThemeToggle from "./ThemeToggle";
-import logo5 from "@/assets/logo5.png";
+import logo5 from "./assets/logo5.png";
 
 const Navigation = () => {
   const location = useLocation();

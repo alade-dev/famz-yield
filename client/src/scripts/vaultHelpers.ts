@@ -651,7 +651,7 @@ export const calculateRedeemOutput = async (
 
     // Calculate what user gets back based on their deposit ratios
     const wbtcToReceive = (lstbtcAmountBN * r_wBTC) / BigInt(1e28);
-    const stcoreToReceive = (lstbtcAmountBN * r_stCORE) / BigInt(1e14);
+    const stcoreToReceive = (lstbtcAmountBN * r_stCORE) / BigInt(1e13);
 
     return {
       wbtcAmount: formatUnits(wbtcToReceive, 8), // wBTC has 8 decimals

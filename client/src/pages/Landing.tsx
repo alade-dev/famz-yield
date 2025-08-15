@@ -111,7 +111,7 @@ const Landing = () => {
                   <TrendingUp className="w-4 h-4 text-green-500" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-500">15.5%</div>
+                  <div className="text-2xl font-bold text-green-500">11.5%</div>
                   <p className="text-xs text-muted-foreground">Current Rate</p>
                 </CardContent>
               </Card>
