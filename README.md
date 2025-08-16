@@ -10,6 +10,13 @@
 ## Pitch deck link: 
 [Google-drive](https://docs.google.com/presentation/d/1Smk0eHTUW46229TbyYFL3PEc_74XzcJi/edit?usp=sharing&ouid=101857238934722798045&rtpof=true&sd=true)
 
+## Demo Video:
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=UUoEHU-zuro">
+    <img src="https://img.youtube.com/vi/UUoEHU-zuro/0.jpg" alt="Watch the Demo">
+  </a>
+</p>
+
 ## Table of Contents
 
 1. [Status & Disclaimer](#status--disclaimer)
