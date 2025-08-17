@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { WagmiProvider } from "wagmi";
 import { config } from "./config/wagmi";
-import { VaultProvider } from "./contexts/VaultContext";
+import { VaultProvider } from "./contexts/VaultContextWithAPI";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { TokenBalanceProvider } from "./contexts/TokenBalanceContext";
 import Navigation from "./components/Navigation";

@@ -3,6 +3,7 @@ import {
   writeContract,
   simulateContract,
   getAccount,
+  waitForTransactionReceipt,
 } from "@wagmi/core";
 import { parseUnits, formatUnits, Address } from "viem";
 import { config } from "@/config/wagmi";
@@ -134,7 +135,9 @@ export const approveWBTC = async (wbtcAmount: string) => {
       args: [CONTRACT_ADDRESSES[1114].VAULT as Address, wbtcAmountBN],
     });
 
-    return result;
+    // Wait for transaction confirmation
+    const receipt = await waitForTransactionReceipt(config, { hash: result });
+    return receipt.transactionHash;
   } catch (error) {
     console.error("Error approving wBTC:", error);
     throw error;
@@ -155,7 +158,9 @@ export const approveStCORE = async (stcoreAmount: string) => {
       args: [CONTRACT_ADDRESSES[1114].VAULT as Address, stcoreAmountBN],
     });
 
-    return result;
+    // Wait for transaction confirmation
+    const receipt = await waitForTransactionReceipt(config, { hash: result });
+    return receipt.transactionHash;
   } catch (error) {
     console.error("Error approving stCORE:", error);
     throw error;

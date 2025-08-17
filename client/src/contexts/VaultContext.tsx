@@ -78,7 +78,7 @@ interface VaultContextType {
   addRedeemTransaction: (transaction: Omit<RedeemTransaction, "id">) => void;
   updateTransactionStatus: (
     id: string,
-    status: "completed" | "pending" | "failed"
+    status: "COMPLETED" | "PENDING" | "FAILED"
   ) => void;
   refreshTransactions: () => void;
 }
@@ -569,7 +569,7 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const updateTransactionStatus = useCallback(
-    (id: string, status: "completed" | "pending" | "failed") => {
+    (id: string, status: "COMPLETED" | "PENDING" | "FAILED") => {
       setTransactions((prev) => {
         const updatedTransactions = prev.map((tx) =>
           tx.id === id ? { ...tx, status } : tx
@@ -589,14 +589,14 @@ export const VaultProvider: React.FC<{ children: React.ReactNode }> = ({
     // Update epoch status for redeem transactions
     setTransactions((prev) =>
       prev.map((tx) => {
-        if (tx.type === "redeem") {
+        if (tx.type === "REDEEM") {
           const redeemTx = tx as RedeemTransaction;
           const updatedInfo = calculateRedeemAvailability(redeemTx.timestamp);
 
           // Update status to completed if tokens are now available
           let newStatus = redeemTx.status;
-          if (updatedInfo.tokensAvailable && redeemTx.status === "pending") {
-            newStatus = "completed";
+          if (updatedInfo.tokensAvailable && redeemTx.status === "PENDING") {
+            newStatus = "COMPLETED";
           }
 
           return {

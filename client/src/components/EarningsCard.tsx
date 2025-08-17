@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Coins, Calendar, ArrowUpRight } from "lucide-react";
-import { useVault } from "@/contexts/VaultContext";
+import { useVault } from "@/contexts/VaultContextWithAPI";
 
 interface EarningsCardProps {
   title: string;
@@ -76,8 +76,15 @@ const EarningsOverview = () => {
   const totalEarnings = getTotalEarnings();
   const totalDeposited = getTotalDeposited();
   const totalValue = getTotalValue();
+
+  // Calculate total deposited value in USD (simplified calculation)
+  const totalDepositedValue =
+    totalDeposited.wbtc * 43000 + totalDeposited.stcore * 1.42;
+
   const earningsPercentage =
-    totalDeposited > 0 ? (totalEarnings / 100).toFixed(1) : "0";
+    totalDepositedValue > 0
+      ? ((totalEarnings / totalDepositedValue) * 100).toFixed(1)
+      : "0";
 
   // Calculate week earnings (simplified as 1/52 of annual)
   const weeklyEarnings = totalEarnings / 52;
@@ -107,14 +114,14 @@ const EarningsOverview = () => {
       amount: totalValue.toFixed(2),
       token: "USD",
       percentage:
-        totalValue > totalDeposited
+        totalValue > totalDepositedValue
           ? `+${(
-              ((totalValue - totalDeposited) / totalDeposited) *
+              ((totalValue - totalDepositedValue) / totalDepositedValue) *
               100
             ).toFixed(1)}%`
           : "0%",
       period: "Current",
-      isPositive: totalValue > totalDeposited,
+      isPositive: totalValue > totalDepositedValue,
     },
     {
       title: "Active Positions",

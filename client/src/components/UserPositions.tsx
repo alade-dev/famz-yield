@@ -9,7 +9,7 @@ import {
   Shield,
   Lock,
 } from "lucide-react";
-import { useVault } from "@/contexts/VaultContext";
+import { useVault } from "@/contexts/VaultContextWithAPI";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "react-router-dom";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
