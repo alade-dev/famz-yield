@@ -1,5 +1,6 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config();
+require("@nomicfoundation/hardhat-verify");
 
 const COMPILER_SETTINGS = {
   optimizer: {
@@ -51,6 +52,13 @@ module.exports = {
         : [""],
       chainId: 1114,
     },
+    coremainnet: {
+      url: process.env.CORE_MAINNET_RPC_URL || "",
+      accounts: process.env.DEPLOYER_PRIVATE_KEY
+        ? [process.env.DEPLOYER_PRIVATE_KEY]
+        : [""],
+      chainId: 1116,
+    },
   },
   etherscan: {
     apiKey: {
@@ -64,6 +72,22 @@ module.exports = {
         urls: {
           apiURL: "https://holesky.etherscan.io/api",
           browserURL: "https://holesky.etherscan.io",
+        },
+      },
+      {
+        network: "coretestnet",
+        chainId: 1114,
+        urls: {
+          apiURL: "https://api.test2.btcs.network/api",
+          browserURL: "https://scan.test2.btcs.network/",
+        },
+      },
+      {
+        network: "coremainnet",
+        chainId: 1116,
+        urls: {
+          apiURL: "https://api.btcs.network/api",
+          browserURL: "https://scan.btcs.network/",
         },
       },
     ],
