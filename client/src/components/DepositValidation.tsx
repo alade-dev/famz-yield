@@ -2,7 +2,7 @@ import React from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, AlertTriangle, Wallet } from "lucide-react";
-import { useVault } from "@/contexts/VaultContext";
+import { useVault } from "@/contexts/VaultContextWithAPI";
 import { useTokenBalanceContext } from "@/contexts/TokenBalanceContext";
 
 interface DepositValidationProps {

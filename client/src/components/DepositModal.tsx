@@ -27,7 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import React from "react";
-import { useVault } from "@/contexts/VaultContext";
+import { useVault } from "@/contexts/VaultContextWithAPI";
 import { useTokenBalanceContext } from "@/contexts/TokenBalanceContext";
 import { BitcoinIcon } from "@/components/icons/BitcoinIcon";
 import { CoreIcon } from "@/components/icons/CoreIcon";
