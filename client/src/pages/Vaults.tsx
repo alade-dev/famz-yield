@@ -21,7 +21,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAccount } from "wagmi";
 import UserPositions from "@/components/UserPositions";
-import { useVault } from "@/contexts/VaultContext";
+import { useVault } from "@/contexts/VaultContextWithAPI";
 import { useTokenBalanceContext } from "@/contexts/TokenBalanceContext";
 import {
   simulateDepositWithChecks,
@@ -548,8 +548,41 @@ const Vaults = () => {
 
           if (approvalResults.length > 0) {
             toast({
-              title: "All Approvals Complete",
-              description: `Approved ${approvalResults.length} token(s). Now executing deposit...`,
+              title: "Approvals Submitted",
+              description: `Approved ${approvalResults.length} token(s). Waiting for confirmations...`,
+            });
+
+            // Wait for approvals to be mined and blockchain state to update
+            await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 second delay
+
+            // Re-check allowances to ensure approvals were successful
+            toast({
+              title: "Verifying Approvals",
+              description: "Checking that approvals were successful...",
+            });
+
+            const updatedAllowances = await checkAllowances(
+              address,
+              wbtcAmt,
+              stcoreAmt
+            );
+
+            if (
+              updatedAllowances.wbtcNeedsApproval ||
+              updatedAllowances.stcoreNeedsApproval
+            ) {
+              toast({
+                title: "Approval Verification Failed",
+                description:
+                  "Some approvals may not have been confirmed. Please try again.",
+                variant: "destructive",
+              });
+              return;
+            }
+
+            toast({
+              title: "Approvals Confirmed",
+              description: "All approvals verified. Proceeding with deposit...",
             });
           } else {
             toast({
@@ -587,6 +620,10 @@ const Vaults = () => {
           lstbtcGenerated: parseFloat(lstBTCResult.lstBTCAmount),
           currentValue: calculateTotalValue(),
           apy: calculateAPY().toFixed(1),
+          initialValue: calculateTotalValue(),
+          earnings: 0,
+          wbtcEarnings: 0,
+          stcoreEarnings: 0,
         });
 
         // Debug: Log the calculation breakdown
@@ -608,13 +645,13 @@ const Vaults = () => {
 
         // Record deposit transaction with actual deposited amounts
         addDepositTransaction({
-          type: "deposit",
+          type: "DEPOSIT",
           txHash,
           timestamp: Date.now(),
           wbtcAmount: btcValue,
           stcoreAmount: coreValue, // Use actual deposited amount
           lstbtcGenerated: parseFloat(lstBTCResult.lstBTCAmount),
-          status: "completed",
+          status: "COMPLETED",
         });
 
         // Clear input fields
@@ -849,7 +886,7 @@ const Vaults = () => {
       const redeemTimestamp = Date.now();
       const redeemInfo = calculateRedeemAvailability(redeemTimestamp);
       addRedeemTransaction({
-        type: "redeem",
+        type: "REDEEM",
         txHash,
         timestamp: redeemTimestamp,
         lstbtcAmount: lstbtcValue,
@@ -858,7 +895,7 @@ const Vaults = () => {
         epochRound: redeemInfo.epochRound,
         epochEndTime: redeemInfo.epochEndTime,
         tokensAvailable: redeemInfo.tokensAvailable,
-        status: redeemInfo.tokensAvailable ? "completed" : "pending",
+        status: redeemInfo.tokensAvailable ? "COMPLETED" : "PENDING",
       });
 
       // Show success modal

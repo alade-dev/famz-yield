@@ -19,7 +19,7 @@ import { CoreIcon } from "@/components/icons/CoreIcon";
 import VaultCreationCard from "@/components/VaultCreationCard";
 import UserPositions from "@/components/UserPositions";
 import TokenBalances from "@/components/TokenBalances";
-import { useVault } from "@/contexts/VaultContext";
+import { useVault } from "@/contexts/VaultContextWithAPI";
 import { useTokenBalanceContext } from "@/contexts/TokenBalanceContext";
 import { useUSDPrices } from "@/hooks/useUSDPrices";
 import { useState } from "react";
@@ -43,6 +43,11 @@ const Dashboard = () => {
 
   const totalDeposited = getTotalDeposited();
   const totalValue = getTotalValue();
+
+  // Calculate total deposited value in USD
+  const totalDepositedValue =
+    totalDeposited.wbtc * usdPrices.wbtc +
+    totalDeposited.stcore * usdPrices.stcore;
   const totalWbtc = positions.reduce((sum, pos) => sum + pos.wbtcDeposited, 0);
   const totalStcore = positions.reduce(
     (sum, pos) => sum + pos.stcoreDeposited,
@@ -222,12 +227,13 @@ const Dashboard = () => {
                       Total Deposited
                     </p>
                     <p className="text-2xl font-bold">
-                      ${totalDeposited.toLocaleString()}
+                      ${totalDepositedValue.toLocaleString()}
                     </p>
                     <p className="text-sm text-gold">
-                      {totalValue > totalDeposited
+                      {totalValue > totalDepositedValue
                         ? `+${(
-                            ((totalValue - totalDeposited) / totalDeposited) *
+                            ((totalValue - totalDepositedValue) /
+                              totalDepositedValue) *
                             100
                           ).toFixed(1)}%`
                         : "Start depositing to earn yield"}

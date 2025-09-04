@@ -24,30 +24,30 @@ import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { BitcoinIcon } from "@/components/icons/BitcoinIcon";
 import { CoreIcon } from "@/components/icons/CoreIcon";
-import { useVault } from "@/contexts/VaultContext";
+import { useVault } from "@/contexts/VaultContextWithAPI";
 
 export interface DepositTransaction {
   id: string;
-  type: "deposit";
+  type: "DEPOSIT";
   txHash: string;
   timestamp: number;
   wbtcAmount: number;
   stcoreAmount: number;
   lstbtcGenerated: number;
-  status: "completed" | "pending" | "failed";
+  status: "COMPLETED" | "PENDING" | "FAILED";
 }
 
 export interface RedeemTransaction {
   id: string;
-  type: "redeem";
+  type: "REDEEM";
   txHash: string;
   timestamp: number;
   lstbtcAmount: number;
   wbtcReceived: number;
   stcoreReceived: number;
   epochRound: number;
-  epochEndTime: number; // UTC timestamp when tokens will be available
-  status: "completed" | "pending" | "failed";
+  epochEndTime: number | string | Date; // UTC timestamp when tokens will be available
+  status: "COMPLETED" | "PENDING" | "FAILED";
   tokensAvailable: boolean;
 }
 
@@ -79,14 +79,24 @@ const TransactionHistoryPage = () => {
   }, [refreshTransactions]);
 
   const depositTransactions = transactions.filter(
-    (tx): tx is DepositTransaction => tx.type === "deposit"
+    (tx): tx is DepositTransaction => tx.type === "DEPOSIT"
   );
   const redeemTransactions = transactions.filter(
-    (tx): tx is RedeemTransaction => tx.type === "redeem"
+    (tx): tx is RedeemTransaction => tx.type === "REDEEM"
   );
 
-  const formatDateTime = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString("en-US", {
+  const formatDateTime = (timestamp: number | string | Date) => {
+    // Convert timestamp to Date object if it's a number or string
+    let date: Date;
+    if (timestamp instanceof Date) {
+      date = timestamp;
+    } else if (typeof timestamp === "string") {
+      date = new Date(timestamp);
+    } else {
+      date = new Date(timestamp);
+    }
+
+    return date.toLocaleString("en-US", {
       timeZone: "UTC",
       year: "numeric",
       month: "short",
@@ -98,8 +108,18 @@ const TransactionHistoryPage = () => {
     });
   };
 
-  const formatTimeRemaining = (epochEndTime: number) => {
-    const remaining = epochEndTime - currentTime;
+  const formatTimeRemaining = (epochEndTime: number | string | Date) => {
+    // Convert epochEndTime to timestamp if it's a Date object or string
+    let timestamp: number;
+    if (epochEndTime instanceof Date) {
+      timestamp = epochEndTime.getTime();
+    } else if (typeof epochEndTime === "string") {
+      timestamp = new Date(epochEndTime).getTime();
+    } else {
+      timestamp = epochEndTime;
+    }
+
+    const remaining = timestamp - currentTime;
     if (remaining <= 0) return "Available now";
 
     const hours = Math.floor(remaining / (1000 * 60 * 60));
@@ -124,7 +144,7 @@ const TransactionHistoryPage = () => {
 
   const getStatusBadge = (status: string, transaction?: RedeemTransaction) => {
     // For redeem transactions, check if epoch is reached
-    if (transaction && transaction.type === "redeem") {
+    if (transaction && transaction.type === "REDEEM") {
       if (transaction.tokensAvailable) {
         return (
           <Badge className="bg-green-500/20 text-green-500">Completed</Badge>
@@ -138,15 +158,15 @@ const TransactionHistoryPage = () => {
 
     // For other transactions, use the original status
     switch (status) {
-      case "completed":
+      case "COMPLETED":
         return (
           <Badge className="bg-green-500/20 text-green-500">Completed</Badge>
         );
-      case "pending":
+      case "PENDING":
         return (
           <Badge className="bg-yellow-500/20 text-yellow-500">Pending</Badge>
         );
-      case "failed":
+      case "FAILED":
         return <Badge className="bg-red-500/20 text-red-500">Failed</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
@@ -395,7 +415,7 @@ const DepositTransactionsTable: React.FC<DepositTransactionsTableProps> = ({
             <div className="flex items-center space-x-2">
               <span className="text-gold font-bold">₿</span>
               <span className="font-medium">
-                {tx.lstbtcGenerated.toFixed(6)}
+                {tx.lstbtcGenerated.toFixed(8)}
               </span>
             </div>
           </TableCell>
@@ -428,8 +448,8 @@ const DepositTransactionsTable: React.FC<DepositTransactionsTableProps> = ({
 
 interface RedeemTransactionsTableProps {
   transactions: RedeemTransaction[];
-  formatDateTime: (timestamp: number) => string;
-  formatTimeRemaining: (epochEndTime: number) => string;
+  formatDateTime: (timestamp: number | string | Date) => string;
+  formatTimeRemaining: (epochEndTime: number | string | Date) => string;
   copyToClipboard: (text: string, label: string) => void;
   getBlockExplorerUrl: (txHash: string) => string;
   getStatusBadge: (

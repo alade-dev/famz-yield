@@ -1,0 +1,127 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model - identified by wallet address
+model User {
+  id            String         @id @default(cuid())
+  walletAddress String         @unique @db.VarChar(42)
+  chainId       Int            @default(1114)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  lastSeen      DateTime       @default(now())
+  
+  // Relations
+  positions     VaultPosition[]
+  transactions  Transaction[]
+  earnings      EarningsHistory[]
+  
+  @@index([walletAddress])
+}
+
+// Vault positions for each user
+model VaultPosition {
+  id               String   @id @default(cuid())
+  userId           String
+  vaultName        String
+  wbtcDeposited    Float
+  stcoreDeposited  Float
+  lstbtcGenerated  Float
+  depositDate      DateTime @default(now())
+  initialValue     Float
+  currentValue     Float
+  earnings         Float    @default(0)
+  apy              String
+  wbtcEarnings     Float    @default(0)
+  stcoreEarnings   Float    @default(0)
+  lastEarningsUpdate DateTime @default(now())
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  // Relations
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([isActive])
+}
+
+// Transaction history
+model Transaction {
+  id               String   @id @default(cuid())
+  userId           String
+  type             TransactionType
+  txHash           String   @unique
+  timestamp        DateTime @default(now())
+  status           TransactionStatus @default(PENDING)
+  
+  // Deposit specific fields
+  wbtcAmount       Float?
+  stcoreAmount     Float?
+  lstbtcGenerated  Float?
+  
+  // Redeem specific fields
+  lstbtcAmount     Float?
+  wbtcReceived     Float?
+  stcoreReceived   Float?
+  epochRound       Int?
+  epochEndTime     DateTime?
+  tokensAvailable  Boolean  @default(false)
+  
+  // Additional metadata
+  gasUsed          String?
+  gasCost          String?
+  blockNumber      Int?
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  // Relations
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([timestamp])
+  @@index([txHash])
+}
+
+// Earnings history for tracking
+model EarningsHistory {
+  id               String   @id @default(cuid())
+  userId           String
+  vaultPositionId  String?
+  date             DateTime @default(now())
+  wbtcEarned       Float
+  stcoreEarned     Float
+  lstbtcValue      Float
+  usdValue         Float?
+  createdAt        DateTime @default(now())
+  
+  // Relations
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([date])
+}
+
+// Enums
+enum TransactionType {
+  DEPOSIT
+  REDEEM
+  APPROVE
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}

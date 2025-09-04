@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { ArrowRight, ArrowDown, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useVault } from "@/contexts/VaultContext";
+import { useVault } from "@/contexts/VaultContextWithAPI";
 import { useTokenBalanceContext } from "@/contexts/TokenBalanceContext";
 import {
   calculateLstBTCFromDeposit,
@@ -169,6 +169,10 @@ const VaultDepositModal = ({
         lstbtcGenerated: parseFloat(lstBTCResult.lstBTCAmount),
         currentValue: currentValue,
         apy: apy,
+        initialValue: currentValue,
+        earnings: 0,
+        wbtcEarnings: 0,
+        stcoreEarnings: 0,
       });
     } catch (error) {
       console.error("Error calculating lstBTC:", error);
@@ -181,6 +185,10 @@ const VaultDepositModal = ({
         lstbtcGenerated: parseFloat(lstbtcPreview),
         currentValue: fallbackValue,
         apy: apy,
+        initialValue: fallbackValue,
+        earnings: 0,
+        wbtcEarnings: 0,
+        stcoreEarnings: 0,
       });
     }
 
