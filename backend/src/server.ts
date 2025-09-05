@@ -91,6 +91,7 @@ process.on("SIGTERM", async () => {
 
 // Export the app for Vercel serverless functions
 export default app;
+module.exports = app;
 
 // Only start the server if not in Vercel environment
 if (process.env.NODE_ENV !== "production" || process.env.VERCEL !== "1") {
