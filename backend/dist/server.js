@@ -71,9 +71,14 @@ process.on("SIGTERM", async () => {
     await exports.prisma.$disconnect();
     process.exit(0);
 });
-// Start server
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📊 Environment: ${process.env.NODE_ENV}`);
-});
+// Export the app for Vercel serverless functions
+exports.default = app;
+module.exports = app;
+// Only start the server if not in Vercel environment
+if (process.env.NODE_ENV !== "production" || process.env.VERCEL !== "1") {
+    app.listen(PORT, () => {
+        console.log(`🚀 Server running on port ${PORT}`);
+        console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+    });
+}
 //# sourceMappingURL=server.js.map

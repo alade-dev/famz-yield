@@ -12,19 +12,6 @@
       "dest": "dist/server.js"
     }
   ],
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "functions": {
-    "dist/server.js": {
-      "maxDuration": 30
-    }
-  },
-  "build": {
-    "env": {
-      "NODE_ENV": "production"
-    }
-  },
   "installCommand": "npm install && npx prisma generate",
-  "buildCommand": "npm run build"
+  "buildCommand": "npm run vercel-build"
 }
